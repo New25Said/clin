@@ -13,7 +13,7 @@ app.listen(PORT, () => {
     console.log(`Puerto activo: ${PORT}`);
 });
 
-// 2. Cliente de Discord (Usando clientReady para evitar advertencias en consola)
+// 2. Cliente de Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -24,7 +24,6 @@ const client = new Client({
 client.once('clientReady', async () => {
     console.log(`🤖 En línea como: ${client.user.tag}`);
     try {
-        // Registramos el comando de barra diagonal /clin
         await client.application.commands.set([
             {
                 name: 'clin',
@@ -53,15 +52,13 @@ client.on('interactionCreate', async (interaction) => {
         const pregunta = interaction.options.getString('pregunta');
         const usuarioId = interaction.user.id;
 
-        // Discord exige respuesta en < 3s. Con esto le decimos que espere a que la IA responda.
         await interaction.deferReply();
 
         try {
-            // Usamos tu variable existente de Render
             const apiKey = process.env.OPENROUTER_API_KEY;
             
-            // Llamada directa a los servidores de Google Gemini (Modelo Gemini 1.5 Flash)
-            const url = `https://generativetutorial.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // LA LÍNEA CORREGIDA: URL de producción oficial de Google Gemini
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
                 method: "POST",
@@ -77,13 +74,21 @@ client.on('interactionCreate', async (interaction) => {
                 })
             });
 
-            const data = await response.json();
+            // Si la API nos devuelve un error que no es JSON, capturamos el texto primero para leerlo en el log
+            const responseText = await response.text();
+            let data;
+            
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("RESPUESTA NO-JSON RECIBIDA DEL SERVIDOR:", responseText);
+                throw new Error("El servidor no devolvió una respuesta JSON válida.");
+            }
 
             // Verificamos si la API de Google devolvió la respuesta en el formato correcto
             if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
                 const respuestaIA = data.candidates[0].content.parts[0].text;
                 
-                // Respondemos mencionando al usuario
                 await interaction.editReply({
                     content: `**Pregunta de** <@${usuarioId}>: *"${pregunta}"*\n\n${respuestaIA}`
                 });
@@ -101,5 +106,4 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Iniciamos sesión en Discord
 client.login(process.env.DISCORD_TOKEN);
