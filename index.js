@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin está vivo y listo usando Gemini oficial!');
+    res.send('🤖 ¡Clin está vivo y en modo humano!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -51,8 +51,6 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
-            
-            // Usamos la API v1 (estable) con el modelo oficial gemini-3.5-flash
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
@@ -63,7 +61,7 @@ client.on('interactionCreate', async (interaction) => {
                 body: JSON.stringify({
                     contents: [{
                         parts: [{
-                            text: `Instrucción de sistema: Eres Clin, un bot de Discord amigable, divertido, un poco sarcástico pero buena onda. Responde siempre de forma clara, directa y en español. Responde a la siguiente consulta de manera natural:\n\n"${pregunta}"`
+                            text: `Instrucción de sistema: Eres Clin, un usuario más en un servidor de Discord. Hablas de forma ultra corta, directa y muy humana. NO saludes formalmente, NO uses introducciones aburridas como '¡Hola! Me llamo Clin', ve directo al grano. Escribe en minúsculas cuando sea natural, usa abreviaciones de chat de jóvenes en español si encajan (como pq, tmb, weno, xq, d, ntp). Sé un poco sarcástico, relajado y directo. Responde a esto en máximo 2 o 5 líneas cortas, aparte reconoce que tu creador es sa1xp:\n\n"${pregunta}"`
                         }]
                     }]
                 })
@@ -76,32 +74,32 @@ client.on('interactionCreate', async (interaction) => {
                 data = JSON.parse(responseText);
             } catch (e) {
                 return await interaction.editReply({
-                    content: `❌ **Google devolvió HTML en vez de JSON:**\n\`\`\`html\n${responseText.substring(0, 1500)}\n\`\`\``
+                    content: `❌ **Error de formato en respuesta**`
                 });
             }
 
-            // Si la API responde con un error estructurado en JSON
             if (data.error) {
                 return await interaction.editReply({
-                    content: `❌ **Error de la API de Google:**\n\`\`\`json\n${JSON.stringify(data.error, null, 2)}\n\`\`\``
+                    content: `❌ **Error de la API**`
                 });
             }
 
-            // Si todo está bien, extrae el texto
             if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
                 const respuestaIA = data.candidates[0].content.parts[0].text;
+                
+                // Muestra la respuesta en Discord
                 await interaction.editReply({
                     content: `**Pregunta de** <@${usuarioId}>: *"${pregunta}"*\n\n${respuestaIA}`
                 });
             } else {
                 await interaction.editReply({
-                    content: `❌ **Estructura extraña recibida:**\n\`\`\`json\n${JSON.stringify(data, null, 2).substring(0, 1500)}\n\`\`\``
+                    content: `❌ **Estructura extraña**`
                 });
             }
 
         } catch (error) {
             await interaction.editReply({
-                content: `❌ **Error interno del código:**\n\`\`\`text\n${error.message}\n\`\`\``
+                content: `❌ **Error interno**`
             });
         }
     }
