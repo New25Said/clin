@@ -72,11 +72,12 @@ client.on('interactionCreate', async (interaction) => {
             } else {
                 throw new Error("Respuesta inválida");
             }
-        } catch (error) {
-            await interaction.editReply({
-                content: `Lo siento <@${usuarioId}>, tuve un problema al conectar con mi cerebro. 😢`
-            });
-        }
+} catch (error) {
+    console.error("ERROR DETECTADO:", error); // <-- ESTA LÍNEA MÁGICA
+    await interaction.editReply({
+        content: `Lo siento <@${usuarioId}>, tuve un problema al conectar con mi cerebro. 😢`
+    });
+}
     }
 });
 
