@@ -52,8 +52,8 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
             
-            // LA URL DEFINITIVA: Usando gemini-1.5-flash-latest en v1beta
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+            // Usamos la API v1 (estable) con el modelo oficial gemini-3.5-flash
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
                 method: "POST",
