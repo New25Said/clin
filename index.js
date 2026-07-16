@@ -57,8 +57,8 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
             
-            // LA LÍNEA CORREGIDA: URL de producción oficial de Google Gemini
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // LA LÍNEA MÁGICA CORREGIDA: Usando la API v1 con gemini-2.5-flash
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
                 method: "POST",
@@ -74,7 +74,7 @@ client.on('interactionCreate', async (interaction) => {
                 })
             });
 
-            // Si la API nos devuelve un error que no es JSON, capturamos el texto primero para leerlo en el log
+            // Capturamos el texto de la respuesta
             const responseText = await response.text();
             let data;
             
