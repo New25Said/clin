@@ -57,8 +57,8 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
             
-            // LA LÍNEA MÁGICA CORREGIDA: Usando la API v1 con gemini-2.5-flash
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            // Usamos el modelo Gemini 3 de nueva generación
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
                 method: "POST",
