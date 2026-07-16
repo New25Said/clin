@@ -57,8 +57,8 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
             
-            // Usamos el modelo Gemini 3 de nueva generación
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            // Usamos la API estable v1 con el modelo gemini-2.5-flash oficial
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
                 method: "POST",
@@ -74,7 +74,6 @@ client.on('interactionCreate', async (interaction) => {
                 })
             });
 
-            // Capturamos el texto de la respuesta
             const responseText = await response.text();
             let data;
             
