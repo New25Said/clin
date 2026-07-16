@@ -1,12 +1,12 @@
 const { Client, GatewayIntentBits, ApplicationCommandOptionType } = require('discord.js');
 const express = require('express');
 
-// 1. Servidor web Express para Render
+// 1. Servidor web Express para mantener vivo el bot en Render
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin está vivo!');
+    res.send('🤖 ¡Clin está vivo y listo usando Gemini oficial!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -33,6 +33,7 @@ client.once('clientReady', async () => {
                 ]
             }
         ]);
+        console.log('¡Comando /clin registrado correctamente!');
     } catch (error) {
         console.error('Error al registrar comando:', error);
     }
@@ -51,8 +52,8 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
             
-            // Forzamos la URL estable de gemini-1.5-flash
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // Usamos la API v1beta con el modelo de producción super estable gemini-1.5-flash
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
                 method: "POST",
@@ -62,7 +63,7 @@ client.on('interactionCreate', async (interaction) => {
                 body: JSON.stringify({
                     contents: [{
                         parts: [{
-                            text: `Responde en español de forma directa: ${pregunta}`
+                            text: `Instrucción de sistema: Eres Clin, un bot de Discord amigable, divertido, un poco sarcástico pero buena onda. Responde siempre de forma clara, directa y en español. Responde a la siguiente consulta de manera natural:\n\n"${pregunta}"`
                         }]
                     }]
                 })
@@ -74,7 +75,6 @@ client.on('interactionCreate', async (interaction) => {
             try {
                 data = JSON.parse(responseText);
             } catch (e) {
-                // Si Google devuelve HTML, te lo dirá en Discord
                 return await interaction.editReply({
                     content: `❌ **Google devolvió HTML en vez de JSON:**\n\`\`\`html\n${responseText.substring(0, 1500)}\n\`\`\``
                 });
@@ -100,7 +100,6 @@ client.on('interactionCreate', async (interaction) => {
             }
 
         } catch (error) {
-            // Si el código de JavaScript falla por otra cosa, te muestra el error clásico
             await interaction.editReply({
                 content: `❌ **Error interno del código:**\n\`\`\`text\n${error.message}\n\`\`\``
             });
