@@ -1,24 +1,19 @@
 const { Client, GatewayIntentBits, ApplicationCommandOptionType } = require('discord.js');
 const express = require('express');
 
-// 1. Servidor web Express para mantener vivo el bot en Render
+// 1. Servidor web Express para Render
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin está vivo y listo usando Gemini oficial!');
+    res.send('🤖 ¡Clin está vivo!');
 });
 
-app.listen(PORT, () => {
-    console.log(`Puerto activo: ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
 // 2. Cliente de Discord
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages
-    ]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
 client.once('clientReady', async () => {
@@ -27,24 +22,23 @@ client.once('clientReady', async () => {
         await client.application.commands.set([
             {
                 name: 'clin',
-                description: 'Pregúntale algo a Clin usando la IA de Google Gemini',
+                description: 'Pregúntale algo a Clin',
                 options: [
                     {
                         name: 'pregunta',
-                        description: 'Tu pregunta o mensaje para Clin',
+                        description: 'Tu pregunta para Clin',
                         type: ApplicationCommandOptionType.String,
                         required: true
                     }
                 ]
             }
         ]);
-        console.log('¡Comando /clin registrado correctamente!');
     } catch (error) {
         console.error('Error al registrar comando:', error);
     }
 });
 
-// 3. Manejador del comando /clin cuando alguien lo usa
+// 3. Manejador del comando /clin
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -57,7 +51,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
             
-            // Usamos la API v1 con el modelo de producción super estable gemini-1.5-flash
+            // Forzamos la URL estable de gemini-1.5-flash
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
@@ -68,39 +62,47 @@ client.on('interactionCreate', async (interaction) => {
                 body: JSON.stringify({
                     contents: [{
                         parts: [{
-                            text: `Instrucción de sistema: Eres Clin, un bot de Discord amigable, divertido, un poco sarcástico pero buena onda. Responde siempre de forma clara, directa y en español. Responde a la siguiente consulta de manera natural:\n\n"${pregunta}"`
+                            text: `Responde en español de forma directa: ${pregunta}`
                         }]
                     }]
                 })
             });
 
-            // Capturamos el texto de la respuesta
             const responseText = await response.text();
             let data;
             
             try {
                 data = JSON.parse(responseText);
             } catch (e) {
-                console.error("RESPUESTA NO-JSON RECIBIDA DEL SERVIDOR:", responseText);
-                throw new Error("El servidor no devolvió una respuesta JSON válida.");
+                // Si Google devuelve HTML, te lo dirá en Discord
+                return await interaction.editReply({
+                    content: `❌ **Google devolvió HTML en vez de JSON:**\n\`\`\`html\n${responseText.substring(0, 1500)}\n\`\`\``
+                });
             }
 
-            // Verificamos si la API de Google devolvió la respuesta en el formato correcto
+            // Si la API responde con un error estructurado en JSON
+            if (data.error) {
+                return await interaction.editReply({
+                    content: `❌ **Error de la API de Google:**\n\`\`\`json\n${JSON.stringify(data.error, null, 2)}\n\`\`\``
+                });
+            }
+
+            // Si todo está bien, extrae el texto
             if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
                 const respuestaIA = data.candidates[0].content.parts[0].text;
-                
                 await interaction.editReply({
                     content: `**Pregunta de** <@${usuarioId}>: *"${pregunta}"*\n\n${respuestaIA}`
                 });
             } else {
-                console.log("RESPUESTA INESPERADA DE LA API:", JSON.stringify(data));
-                throw new Error("La API no devolvió una estructura compatible.");
+                await interaction.editReply({
+                    content: `❌ **Estructura extraña recibida:**\n\`\`\`json\n${JSON.stringify(data, null, 2).substring(0, 1500)}\n\`\`\``
+                });
             }
 
         } catch (error) {
-            console.error("ERROR DETECTADO EN GEMINI:", error);
+            // Si el código de JavaScript falla por otra cosa, te muestra el error clásico
             await interaction.editReply({
-                content: `Lo siento <@${usuarioId}>, tuve un calambre cerebral al intentar procesar eso. 😢`
+                content: `❌ **Error interno del código:**\n\`\`\`text\n${error.message}\n\`\`\``
             });
         }
     }
