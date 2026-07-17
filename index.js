@@ -43,7 +43,7 @@ function actualizarEstadoClin(nuevoEstado) {
 // Función auxiliar para pausar la ejecución (simular tiempo de escritura)
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
     actualizarEstadoClin("pensando en la inmortalidad del cangrejo...");
 
@@ -112,9 +112,9 @@ Reglas para tu "status":
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             contents: historialConInstruccion,
-            // Forzamos a Gemini a responder estrictamente en formato JSON
+            // CORREGIDO: Usamos snake_case "response_mime_type" para que Google lo reconozca
             generationConfig: {
-                responseMimeType: "application/json"
+                response_mime_type: "application/json"
             }
         })
     });
@@ -134,14 +134,12 @@ Reglas para tu "status":
     if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
         const textoJSON = data.candidates[0].content.parts[0].text;
         try {
-            // Parseamos el JSON que generó la IA con su respuesta y su estado
             const resultadoIA = JSON.parse(textoJSON);
             return {
                 reply: resultadoIA.reply || "no entendí nada xd",
                 status: resultadoIA.status || "en el limbo"
             };
         } catch (e) {
-            // Fallback si por alguna razón extraña la estructura JSON interna falla
             return {
                 reply: textoJSON,
                 status: "pensando..."
@@ -196,7 +194,6 @@ client.on('messageCreate', async (message) => {
         try {
             const resultado = await solicitarRespuestaGemini(canalId);
 
-            // Guardamos solo su respuesta textual en la memoria para no confundir al historial
             memoriaCanales[canalId].push({
                 role: "model",
                 parts: [{ text: resultado.reply }]
@@ -211,7 +208,7 @@ client.on('messageCreate', async (message) => {
                 await message.reply(resultado.reply);
             }
 
-            // ¡Clin actualiza su estado con lo que él mismo decidió sentir!
+            // Clin actualiza su estado con lo que decidió sentir
             actualizarEstadoClin(resultado.status);
 
         } catch (error) {
