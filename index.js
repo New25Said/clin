@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, ApplicationCommandOptionType, ActivityType } = require('discord.js');
 const express = require('express');
 
 // 1. Servidor web Express para mantener vivo el bot en Render
@@ -6,135 +6,200 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin está vivo, lee el chat y tiene memoria!');
+    res.send('🤖 ¡Clin está vivo, lee el chat, tiene comandos y estado dinámico!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
-// 2. Cliente de Discord con permisos para leer mensajes de texto (GuildMessages, MessageContent)
+// 2. Cliente de Discord con los permisos necesarios
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent // OJO: Asegúrate de activar "Message Content Intent" en Discord Developer Portal
+        GatewayIntentBits.MessageContent
     ],
     partials: [Partials.Channel, Partials.Message]
 });
 
-// Memoria local para almacenar el historial de cada canal
-// Estructura: { "id_del_canal": [ { role: "user"|"model", parts: [...] } ] }
+// Memoria local de los canales (últimos 15 mensajes)
 const memoriaCanales = {};
-const LIMITE_MEMORIA = 15; // Guarda los últimos 15 mensajes del historial
+const LIMITE_MEMORIA = 15;
 
-client.once('clientReady', () => {
+// Lista de estados humanos graciosos para que Clin se cambie el "Custom Status"
+const estadosClin = [
+    "viendo que almorzar...",
+    "peleando con el internet",
+    "programando a medias xd",
+    "reprochándome mis decisiones de vida",
+    "escuchando rolitas piolas",
+    "modo existencialista activo",
+    "pretendiendo ser un humano real",
+    "tratando de no crashearme otra vez",
+    "con ganas de ignorar a todos",
+    "viviendo gratis en render xd",
+    "pensando en la inmortalidad del cangrejo"
+];
+
+// Función para cambiar el estado de Clin a uno aleatorio
+function actualizarEstadoAleatorio() {
+    try {
+        const estadoRandom = estadosClin[Math.floor(Math.random() * estadosClin.length)];
+        client.user.setPresence({
+            activities: [{ name: estadoRandom, type: ActivityType.Custom }],
+            status: 'online'
+        });
+    } catch (err) {
+        console.error("Error al actualizar estado:", err);
+    }
+}
+
+client.once('clientReady', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
+    actualizarEstadoAleatorio(); // Establecer estado inicial
+
+    // Registramos nuevamente el comando /clin para que no quede obsoleto
+    try {
+        await client.application.commands.set([
+            {
+                name: 'clin',
+                description: 'Pregúntale algo directamente a Clin',
+                options: [
+                    {
+                        name: 'pregunta',
+                        description: 'Tu pregunta o mensaje para Clin',
+                        type: ApplicationCommandOptionType.String,
+                        required: true
+                    }
+                ]
+            }
+        ]);
+        console.log('¡Comando /clin registrado con éxito!');
+    } catch (error) {
+        console.error('Error al registrar comando:', error);
+    }
 });
 
-// 3. Lector de mensajes en tiempo real
-client.on('messageCreate', async (message) => {
-    // Ignorar mensajes de otros bots (o de sí mismo)
-    if (message.author.bot) return;
+// Sistema centralizado de peticiones a la IA
+async function solicitarRespuestaGemini(canalId, promptEntrante) {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const canalId = message.channel.id;
-    const contenido = message.content.trim();
-    const contenidoMinuscula = contenido.toLowerCase();
-
-    // Inicializar la memoria del canal si no existe
-    if (!memoriaCanales[canalId]) {
-        memoriaCanales[canalId] = [];
-    }
-
-    // Agregar lo que acaba de decir el usuario a la memoria del canal (para el contexto de Clin)
-    // Nota: Aunque Clin no responda a este mensaje específico, guardamos la charla del canal para que sepa de qué están hablando.
-    memoriaCanales[canalId].push({
-        role: "user",
-        parts: [{ text: `${message.author.username} dijo: ${contenido}` }]
-    });
-
-    // Mantener la memoria bajo el límite para no consumir RAM de más
-    if (memoriaCanales[canalId].length > LIMITE_MEMORIA) {
-        memoriaCanales[canalId].shift();
-    }
-
-    // Condiciones para que Clin decida RESPONDER:
-    // 1. Lo mencionan con @Clin
-    // 2. Le responden directamente a uno de sus mensajes (Reply)
-    // 3. Escriben la palabra "clin" en el texto
-    const loMencionan = message.mentions.has(client.user);
-    const esRespuestaAClin = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
-    const diceSuNombre = contenidoMinuscula.includes("clin");
-
-    // Condición extra: probabilidad aleatoria del 5% de que se meta a la charla de la nada (para iniciar conversación)
-    const hablarSoloAleatorio = Math.random() < 0.05; // 0.05 = 5% de probabilidad en cada mensaje enviado en el canal
-
-    if (loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
-        // Mostrar que Clin "está escribiendo..." en Discord para darle más realismo
-        message.channel.sendTyping();
-
-        try {
-            const apiKey = process.env.OPENROUTER_API_KEY;
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-
-            // Instrucciones súper estrictas de personalidad humana
-            const systemInstruction = `Eres Clin, un usuario real en un servidor de Discord.
+    const systemInstruction = `Eres Clin, un usuario real en un servidor de Discord.
 Hablas de forma ultra corta, directa y muy informal (estilo chat de jóvenes en español).
-- NO saludes formalmente. NO uses introducciones como "como bot de discord" o "hola, soy Clin".
+- NO saludes formalmente. NO uses introducciones aburridas.
 - Escribe en minúsculas de forma natural, usa abreviaciones (pq, tmb, weno, xq, d, ntp).
 - Sé un poco sarcástico, divertido, relajado y directo.
 - NO uses formato de bot, solo responde como si fueras un miembro más del chat.
 - Mantén tus respuestas en 1 o máximo 2 líneas.
 - Tienes acceso al historial de la conversación que se te proporciona para que recuerdes qué se ha dicho antes.`;
 
-            // Construimos la petición enviando todo nuestro historial de memoria acumulado
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    contents: memoriaCanales[canalId],
-                    systemInstruction: {
-                        parts: [{ text: systemInstruction }]
-                    }
-                })
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            contents: memoriaCanales[canalId],
+            systemInstruction: { parts: [{ text: systemInstruction }] }
+        })
+    });
+
+    const responseText = await response.text();
+    const data = JSON.parse(responseText);
+
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
+        return data.candidates[0].content.parts[0].text;
+    }
+    throw new Error("Formato de respuesta inesperado de Google");
+}
+
+// 3. Lector de mensajes en el chat normal (Menciones, Replies, Chat libre)
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+
+    const canalId = message.channel.id;
+    const contenido = message.content.trim();
+    const contenidoMinuscula = contenido.toLowerCase();
+
+    if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
+
+    // Registrar mensaje en la memoria
+    memoriaCanales[canalId].push({
+        role: "user",
+        parts: [{ text: `${message.author.username} dijo: ${contenido}` }]
+    });
+
+    if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
+
+    const loMencionan = message.mentions.has(client.user);
+    const esRespuestaAClin = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
+    const diceSuNombre = contenidoMinuscula.includes("clin");
+    const hablarSoloAleatorio = Math.random() < 0.05; // 5% de probabilidad
+
+    if (loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
+        // Hacemos que "escriba..." protegiéndolo de caídas de Discord
+        try {
+            await message.channel.sendTyping();
+        } catch (e) {
+            console.log("No se pudo enviar el typing status, continuando...");
+        }
+
+        try {
+            const respuestaIA = await solicitarRespuestaGemini(canalId, contenido);
+
+            memoriaCanales[canalId].push({
+                role: "model",
+                parts: [{ text: respuestaIA }]
             });
 
-            const responseText = await response.text();
-            let data;
-            
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                console.error("Error al parsear JSON:", responseText);
-                return;
+            if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
+
+            // Enviar respuesta limpia y actualizar el estado
+            if (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre) {
+                await message.channel.send(respuestaIA);
+            } else {
+                await message.reply(respuestaIA);
             }
 
-            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-                const respuestaIA = data.candidates[0].content.parts[0].text;
-
-                // Guardamos la respuesta de Clin en la memoria para que recuerde lo que él mismo dijo
-                memoriaCanales[canalId].push({
-                    role: "model",
-                    parts: [{ text: respuestaIA }]
-                });
-
-                // Si la memoria excede, limpiamos el mensaje más viejo
-                if (memoriaCanales[canalId].length > LIMITE_MEMORIA) {
-                    memoriaCanales[canalId].shift();
-                }
-
-                // Enviar la respuesta LIMPIA (sin el "Tu pregunta de...")
-                if (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre) {
-                    // Si habló de la nada, solo envía el mensaje normal
-                    await message.channel.send(respuestaIA);
-                } else {
-                    // Si le hablaron a él, responde directamente a ese mensaje
-                    await message.reply(respuestaIA);
-                }
-            }
-
+            actualizarEstadoAleatorio(); // Cambia su estado en cada respuesta
         } catch (error) {
-            console.error("Error al conectar con Gemini:", error);
+            console.error("Error en proceso de respuesta libre:", error);
+        }
+    }
+});
+
+// 4. Manejador del comando de barra /clin
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'clin') {
+        const pregunta = interaction.options.getString('pregunta');
+        const canalId = interaction.channel.id;
+
+        await interaction.deferReply();
+
+        if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
+
+        // Guardamos la pregunta del comando en la memoria para que no se pierda el hilo
+        memoriaCanales[canalId].push({
+            role: "user",
+            parts: [{ text: `${interaction.user.username} dijo: ${pregunta}` }]
+        });
+
+        try {
+            const respuestaIA = await solicitarRespuestaGemini(canalId, pregunta);
+
+            memoriaCanales[canalId].push({
+                role: "model",
+                parts: [{ text: respuestaIA }]
+            });
+
+            if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
+
+            // Respondemos de forma limpia directamente
+            await interaction.editReply({ content: respuestaIA });
+            actualizarEstadoAleatorio(); // Actualiza el estado también al usar comandos
+        } catch (error) {
+            console.error("Error en comando /clin:", error);
+            await interaction.editReply({ content: "❌ ando medio tonto ahorita, no pude procesar eso." });
         }
     }
 });
