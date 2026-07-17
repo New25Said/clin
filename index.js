@@ -57,7 +57,7 @@ client.once('clientReady', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
     actualizarEstadoAleatorio(); // Establecer estado inicial
 
-    // Registramos nuevamente el comando /clin para que no quede obsoleto
+    // Registramos nuevamente el comando /clin
     try {
         await client.application.commands.set([
             {
@@ -80,7 +80,7 @@ client.once('clientReady', async () => {
 });
 
 // Sistema centralizado de peticiones a la IA
-async function solicitarRespuestaGemini(canalId, promptEntrante) {
+async function solicitarRespuestaGemini(canalId) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
@@ -93,21 +93,43 @@ Hablas de forma ultra corta, directa y muy informal (estilo chat de jóvenes en 
 - Mantén tus respuestas en 1 o máximo 2 líneas.
 - Tienes acceso al historial de la conversación que se te proporciona para que recuerdes qué se ha dicho antes.`;
 
+    // Filtramos la memoria para asegurarnos de no enviar un historial vacío o con un formato que rompa a Gemini
+    const historialValido = memoriaCanales[canalId] && memoriaCanales[canalId].length > 0
+        ? memoriaCanales[canalId]
+        : [{ role: "user", parts: [{ text: "hola" }] }];
+
     const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            contents: memoriaCanales[canalId],
-            systemInstruction: { parts: [{ text: systemInstruction }] }
+            contents: historialValido,
+            // Ajustamos la estructura exacta que la API v1 de Gemini pide para las System Instructions
+            systemInstruction: {
+                role: "system",
+                parts: [{ text: systemInstruction }]
+            }
         })
     });
 
     const responseText = await response.text();
-    const data = JSON.parse(responseText);
+    let data;
+    try {
+        data = JSON.parse(responseText);
+    } catch (e) {
+        console.error("Respuesta no-JSON de Google:", responseText);
+        throw new Error("El servidor de Google no envió un JSON válido");
+    }
+
+    if (data.error) {
+        console.error("Error devuelto por la API de Google:", JSON.stringify(data.error));
+        throw new Error(data.error.message);
+    }
 
     if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
         return data.candidates[0].content.parts[0].text;
     }
+    
+    console.log("Respuesta extraña de Google:", JSON.stringify(data));
     throw new Error("Formato de respuesta inesperado de Google");
 }
 
@@ -143,7 +165,7 @@ client.on('messageCreate', async (message) => {
         }
 
         try {
-            const respuestaIA = await solicitarRespuestaGemini(canalId, contenido);
+            const respuestaIA = await solicitarRespuestaGemini(canalId);
 
             memoriaCanales[canalId].push({
                 role: "model",
@@ -185,7 +207,7 @@ client.on('interactionCreate', async (interaction) => {
         });
 
         try {
-            const respuestaIA = await solicitarRespuestaGemini(canalId, pregunta);
+            const respuestaIA = await solicitarRespuestaGemini(canalId);
 
             memoriaCanales[canalId].push({
                 role: "model",
@@ -199,7 +221,7 @@ client.on('interactionCreate', async (interaction) => {
             actualizarEstadoAleatorio(); // Actualiza el estado también al usar comandos
         } catch (error) {
             console.error("Error en comando /clin:", error);
-            await interaction.editReply({ content: "❌ ando medio tonto ahorita, no pude procesar eso." });
+            await interaction.editReply({ content: "❌ ando medio tonto ahorita, no pude procesar eso, nose we preguntale a un tal @sa1xp a ver si sabe que webada me pasa crack." });
         }
     }
 });
