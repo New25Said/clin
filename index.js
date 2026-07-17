@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin ultra autónomo está vivo!');
+    res.send('🤖 ¡Clin ultra autónomo y protegido está vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -26,6 +26,10 @@ const client = new Client({
 // Memoria local de los canales (últimos 15 mensajes)
 const memoriaCanales = {};
 const LIMITE_MEMORIA = 15;
+
+// Cooldown para evitar que agote la cuota gratis por spam o bucles
+const cooldownsCanales = new Map();
+const TIEMPO_COOLDOWN = 4000; // 4 segundos entre respuestas por canal
 
 // Función para cambiar el estado de Clin a lo que él mismo decida
 function actualizarEstadoClin(nuevoEstado) {
@@ -112,7 +116,6 @@ Reglas para tu "status":
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             contents: historialConInstruccion
-            // Eliminamos "generationConfig" para evitar errores de campos desconocidos en Google
         })
     });
 
@@ -145,7 +148,6 @@ Reglas para tu "status":
                 status: resultadoIA.status || "en el limbo"
             };
         } catch (e) {
-            // Si por alguna razón la IA responde texto plano en lugar de JSON, lo manejamos limpiamente
             return {
                 reply: textoJSON,
                 status: "pensando..."
@@ -158,6 +160,7 @@ Reglas para tu "status":
 
 // 3. Lector de mensajes en el chat normal (Menciones, Replies, Chat libre)
 client.on('messageCreate', async (message) => {
+    // 1. FILTRO ULTRA ESTRICTO: Ignorar si es un bot (incluyéndose a sí mismo) para evitar bucles infinitos
     if (message.author.bot) return;
 
     const canalId = message.channel.id;
@@ -187,6 +190,17 @@ client.on('messageCreate', async (message) => {
     const hablarSoloAleatorio = Math.random() < 0.05; // 5% de probabilidad
 
     if (loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
+        
+        // 2. FILTRO DE COOLDOWN: Si el canal está bloqueado por cooldown, Clin ignora el mensaje para salvar la cuota
+        if (cooldownsCanales.has(canalId)) {
+            console.log(`Mensaje ignorado en ${canalId} por cooldown activo.`);
+            return;
+        }
+
+        // Activamos el cooldown de inmediato para este canal
+        cooldownsCanales.set(canalId, true);
+        setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
+
         try {
             await message.channel.sendTyping();
         } catch (e) {
