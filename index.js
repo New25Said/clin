@@ -6,19 +6,19 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin en su versión final ultra humana está vivo!');
+    res.send('🤖 ¡Clin ultra autónomo está vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
-// 2. Cliente de Discord con permisos completos (incluyendo Presencias y Miembros)
+// 2. Cliente de Discord con permisos completos
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildPresences, // Para poder leer estados personalizados de la gente
-        GatewayIntentBits.GuildMembers   // Para poder leer apodos reales del servidor
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildMembers
     ],
     partials: [Partials.Channel, Partials.Message]
 });
@@ -27,30 +27,12 @@ const client = new Client({
 const memoriaCanales = {};
 const LIMITE_MEMORIA = 15;
 
-// Lista de estados humanos graciosos para el "Custom Status" de Clin
-const estadosClin = [
-    "viendo que almorzar...",
-    "peleando con el internet",
-    "programando a medias xd",
-    "reprochándome mis decisiones de vida",
-    "escuchando rolitas piolas",
-    "modo existencialista activo",
-    "pretendiendo ser un humano real",
-    "tratando de no crashearme otra vez",
-    "con ganas de ignorar a todos",
-    "viviendo gratis en render xd",
-    "pensando en la inmortalidad del cangrejo",
-    "jugando algo piola",
-    "ignorando mis responsabilidades",
-    "en mi momento más humilde"
-];
-
-// Función para cambiar el estado de Clin de forma orgánica y asíncrona
-function actualizarEstadoAleatorio() {
+// Función para cambiar el estado de Clin a lo que él mismo decida
+function actualizarEstadoClin(nuevoEstado) {
     try {
-        const estadoRandom = estadosClin[Math.floor(Math.random() * estadosClin.length)];
+        if (!nuevoEstado) return;
         client.user.setPresence({
-            activities: [{ name: estadoRandom, type: ActivityType.Custom }],
+            activities: [{ name: nuevoEstado.toLowerCase(), type: ActivityType.Custom }],
             status: 'online'
         });
     } catch (err) {
@@ -58,9 +40,12 @@ function actualizarEstadoAleatorio() {
     }
 }
 
+// Función auxiliar para pausar la ejecución (simular tiempo de escritura)
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
 client.once('ready', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
-    actualizarEstadoAleatorio(); // Estado inicial al prenderse
+    actualizarEstadoClin("pensando en la inmortalidad del cangrejo...");
 
     // Registrar comando /clin
     try {
@@ -84,20 +69,28 @@ client.once('ready', async () => {
     }
 });
 
-// Sistema centralizado de peticiones a la IA (Gemini 3.5 Flash)
+// Sistema centralizado de peticiones a la IA (Gemini 3.5 Flash) con retorno JSON estructurado
 async function solicitarRespuestaGemini(canalId) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const systemInstruction = `Instrucción de sistema muy importante: Eres Clin, un usuario real más en este chat de Discord.
-Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
-- NUNCA saludes de forma robótica. NO uses introducciones como "como bot de discord" o "hola, soy Clin".
-- Escribe siempre en minúsculas de forma natural.
-- Usa abreviaciones de chat de forma natural si encajan (pq, tmb, weno, xq, d, ntp, xd).
-- Sé un poco sarcástico, divertido, relajado y directo.
-- Responde a la última intervención usando el contexto anterior de lo que han estado hablando.
-- Mantén tus respuestas súper cortas, en una sola línea (máximo 2 líneas si es muy necesario).
-- Se te proporciona información de los usuarios (su apodo, estado de conexión y lo que tienen escrito en su actividad de Discord) para que puedas comentar sobre ello con total naturalidad si te preguntan o quieres bromear con eso.`;
+    const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord.
+Debes responder obligatoriamente en formato JSON con la siguiente estructura exacta:
+{
+  "reply": "tu respuesta ultra corta, informal, sarcástica y en minúsculas",
+  "status": "un estado personalizado de discord (máximo 4 palabras) que describa lo que estás haciendo o pensando en este momento según tu humor o lo que se habla en el chat"
+}
+
+Reglas de personalidad para tu "reply":
+- Hablas de forma ultra corta, directa e informal (como un joven d internet).
+- NUNCA saludes de forma robótica. NO uses introducciones como "como bot d discord" o "hola soy clin".
+- Escribe siempre en minúsculas.
+- Usa abreviaciones de chat d forma natural (pq, tmb, weno, xq, d, ntp, xd).
+- Responde solo en 1 o máximo 2 líneas.
+
+Reglas para tu "status":
+- Debe ser muy corto (ej: "comiendo pancito", "recalculando vida xd", "con sueño", "modo chill").
+- En minúsculas y muy natural.`;
 
     const historialConInstruccion = [
         {
@@ -106,7 +99,7 @@ Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
         },
         {
             role: "model",
-            parts: [{ text: "entendido, de ahora en adelante hablaré así, en minúsculas, ultra corto, directo y relajado xd. ¿qué pasó?" }]
+            parts: [{ text: `{"reply": "entendido xd, ya sé cómo hablar", "status": "configurando mi chip..."}` }]
         }
     ];
 
@@ -118,7 +111,11 @@ Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            contents: historialConInstruccion
+            contents: historialConInstruccion,
+            // Forzamos a Gemini a responder estrictamente en formato JSON
+            generationConfig: {
+                responseMimeType: "application/json"
+            }
         })
     });
 
@@ -135,7 +132,21 @@ Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
     }
 
     if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-        return data.candidates[0].content.parts[0].text;
+        const textoJSON = data.candidates[0].content.parts[0].text;
+        try {
+            // Parseamos el JSON que generó la IA con su respuesta y su estado
+            const resultadoIA = JSON.parse(textoJSON);
+            return {
+                reply: resultadoIA.reply || "no entendí nada xd",
+                status: resultadoIA.status || "en el limbo"
+            };
+        } catch (e) {
+            // Fallback si por alguna razón extraña la estructura JSON interna falla
+            return {
+                reply: textoJSON,
+                status: "pensando..."
+            };
+        }
     }
     
     throw new Error("Formato de respuesta inesperado de Google");
@@ -156,11 +167,9 @@ client.on('messageCreate', async (message) => {
     const username = message.author.username;
     const presencia = message.member?.presence;
     const estadoConexion = presencia ? presencia.status : 'offline/invisible';
-    
-    // Obtener su estado personalizado de Discord si tiene uno puesto
     const customStatus = presencia?.activities.find(act => act.type === ActivityType.Custom)?.state || 'ninguno';
 
-    // Registrar mensaje en la memoria con todos los datos contextuales del "humano"
+    // Registrar mensaje en la memoria
     memoriaCanales[canalId].push({
         role: "user",
         parts: [{ text: `[Usuario: ${username} | Apodo: ${nickname} | Estado: ${estadoConexion} | EstadoPersonalizado: "${customStatus}"] dijo: ${contenido}` }]
@@ -171,47 +180,42 @@ client.on('messageCreate', async (message) => {
     const loMencionan = message.mentions.has(client.user);
     const esRespuestaAClin = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
     const diceSuNombre = contenidoMinuscula.includes("clin");
-    
-    // 5% de probabilidad de meterse a la charla de la nada
-    const hablarSoloAleatorio = Math.random() < 0.05; 
+    const hablarSoloAleatorio = Math.random() < 0.05; // 5% de probabilidad
 
     if (loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
-        // Activamos la burbuja verde de "Escribiendo..." con total protección contra caídas de Discord
         try {
             await message.channel.sendTyping();
         } catch (e) {
-            console.log("No se pudo enviar el typing status, continuando...");
+            console.log("No se pudo enviar el typing status, continuing...");
         }
 
-        try {
-            const respuestaIA = await solicitarRespuestaGemini(canalId);
+        // Retraso de escritura humana de 1.5 a 3 segundos
+        const tiempoEscritura = Math.floor(Math.random() * (3000 - 1500 + 1)) + 1500;
+        await delay(tiempoEscritura);
 
+        try {
+            const resultado = await solicitarRespuestaGemini(canalId);
+
+            // Guardamos solo su respuesta textual en la memoria para no confundir al historial
             memoriaCanales[canalId].push({
                 role: "model",
-                parts: [{ text: respuestaIA }]
+                parts: [{ text: resultado.reply }]
             });
 
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            // Enviar respuesta limpia
+            // Enviar la respuesta en el chat
             if (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre) {
-                await message.channel.send(respuestaIA);
+                await message.channel.send(resultado.reply);
             } else {
-                await message.reply(respuestaIA);
+                await message.reply(resultado.reply);
             }
 
-            // Cambiar estado de forma orgánica al azar (no siempre, solo el 40% de las veces que responde para que se vea real)
-            if (Math.random() < 0.40) {
-                actualizarEstadoAleatorio();
-            }
+            // ¡Clin actualiza su estado con lo que él mismo decidió sentir!
+            actualizarEstadoClin(resultado.status);
+
         } catch (error) {
             console.error("Error en proceso de respuesta libre:", error);
-        }
-    } else {
-        // Si Clin solo lee el chat de fondo y no responde, tiene un 2% de probabilidad de cambiar su estado
-        // Esto hace que cambie su estado de la nada mientras ustedes hablan, ¡súper realista!
-        if (Math.random() < 0.02) {
-            actualizarEstadoAleatorio();
         }
     }
 });
@@ -236,22 +240,24 @@ client.on('interactionCreate', async (interaction) => {
             parts: [{ text: `[Usuario: ${username} | Apodo: ${nickname}] dijo vía comando: ${pregunta}` }]
         });
 
+        const tiempoEscritura = Math.floor(Math.random() * (2000 - 1000 + 1)) + 1000;
+        await delay(tiempoEscritura);
+
         try {
-            const respuestaIA = await solicitarRespuestaGemini(canalId);
+            const resultado = await solicitarRespuestaGemini(canalId);
 
             memoriaCanales[canalId].push({
                 role: "model",
-                parts: [{ text: respuestaIA }]
+                parts: [{ text: resultado.reply }]
             });
 
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            await interaction.editReply({ content: respuestaIA });
+            await interaction.editReply({ content: resultado.reply });
             
-            // Probabilidad orgánica de cambiar estado tras el comando
-            if (Math.random() < 0.40) {
-                actualizarEstadoAleatorio();
-            }
+            // También actualiza su propio estado al responder por comando
+            actualizarEstadoClin(resultado.status);
+
         } catch (error) {
             console.error("Error en comando /clin:", error);
             await interaction.editReply({ content: "❌ ando medio tonto ahorita, no pude procesar eso." });
