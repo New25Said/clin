@@ -6,12 +6,23 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin Ultra Humano con Visión, DMs y Web Scraping está vivo!');
+    res.send('🤖 ¡Clin Optimizado y Despierto está vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
-// 2. Cliente de Discord con todos los intents y partials necesarios (incluyendo DMs)
+// Sistema de Auto-Ping para evitar que Render congele la CPU del bot
+setInterval(async () => {
+    try {
+        // Se hace un ping automático a su propia URL de Render para mantenerse activo
+        await fetch(`https://clin-7bfb.onrender.com/`);
+        console.log('⏰ Auto-ping de optimización enviado para mantener despierto a Clin.');
+    } catch (e) {
+        console.log('Error en auto-ping, ignorando...');
+    }
+}, 300000); // Cada 5 minutos (300,000 ms)
+
+// 2. Cliente de Discord con todos los intents y partials necesarios
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -19,9 +30,9 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.DirectMessages // Permitir leer DMs
+        GatewayIntentBits.DirectMessages
     ],
-    partials: [Partials.Channel, Partials.Message] // Necesario para recibir DMs correctamente
+    partials: [Partials.Channel, Partials.Message]
 });
 
 // Memoria local de los canales y DMs (últimos 15 mensajes)
@@ -32,12 +43,14 @@ const LIMITE_MEMORIA = 15;
 const cooldownsCanales = new Map();
 const TIEMPO_COOLDOWN = 4000;
 
-// Función para cambiar el estado de Clin a lo que él mismo decida
+// Función para cambiar el estado de Clin
 function actualizarEstadoClin(nuevoEstado) {
     try {
         if (!nuevoEstado) return;
+        // Limpieza extra por si la IA devuelve comillas por error
+        const limpio = nuevoEstado.replace(/["']/g, "").toLowerCase().trim();
         client.user.setPresence({
-            activities: [{ name: nuevoEstado.toLowerCase(), type: ActivityType.Custom }],
+            activities: [{ name: limpio, type: ActivityType.Custom }],
             status: 'online'
         });
     } catch (err) {
@@ -47,10 +60,9 @@ function actualizarEstadoClin(nuevoEstado) {
 
 // Bucle dinámico para que Clin cambie su estado SOLO y de la nada (cada 10 a 20 minutos)
 function iniciarBucleDeEstadosAutonomos() {
-    const tiempoAleatorio = Math.floor(Math.random() * (1200000 - 600000 + 1)) + 600000; // Entre 10 y 20 min
+    const tiempoAleatorio = Math.floor(Math.random() * (1200000 - 600000 + 1)) + 600000;
     setTimeout(async () => {
         try {
-            // Le pedimos a la IA un estado random rápido basándonos en una petición simple
             const apiKey = process.env.OPENROUTER_API_KEY;
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
             
@@ -58,7 +70,7 @@ function iniciarBucleDeEstadosAutonomos() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    contents: [{ role: "user", parts: [{ text: "Inventa un estado personalizado corto para tu perfil de discord (máximo 4 palabras). Estilo joven de internet, minúsculas, gracioso o existencial. Devuelve SOLO el texto plano." }] }]
+                    contents: [{ role: "user", parts: [{ text: "Inventa un estado personalizado corto para tu perfil de discord (máximo 4 palabras). Estilo joven de internet, minúsculas, gracioso o existencial. NO uses respuestas anteriores de usuarios. Devuelve SOLO el texto plano sin comillas." }] }]
                 })
             });
             const responseText = await response.text();
@@ -70,12 +82,9 @@ function iniciarBucleDeEstadosAutonomos() {
         } catch (e) {
             console.log("No se pudo actualizar el estado autónomo en este ciclo.");
         }
-        iniciarBucleDeEstadosAutonomos(); // Re-inicia el ciclo de forma infinita
+        iniciarBucleDeEstadosAutonomos();
     }, tiempoAleatorio);
 }
-
-// Función auxiliar para pausar la ejecución (simular tiempo de escritura)
-const delay = ms => new Promise(res => setTimeout(res, ms));
 
 // Función para descargar imágenes y convertirlas a formato Base64 para Gemini
 async function urlToBase64(url) {
@@ -100,13 +109,12 @@ async function rasparLink(url) {
     try {
         const res = await fetch(url);
         const html = await res.text();
-        // Extraemos solo fragmentos limpios de texto (título y párrafos básicos primitivos)
         const titulo = html.match(/<title>([^<]+)<\/title>/)?.[1] || "Web";
         const cuerpoLimpio = html.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
                                  .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
                                  .replace(/<[^>]+>/g, ' ')
                                  .replace(/\s+/g, ' ')
-                                 .substring(0, 1000); // Tomamos los primeros 1000 caracteres
+                                 .substring(0, 1000);
         return `[Contenido del Link: "${titulo}" -> ${cuerpoLimpio}]`;
     } catch (e) {
         return `[No se pudo leer el contenido del link: ${url}]`;
@@ -115,7 +123,7 @@ async function rasparLink(url) {
 
 client.once('clientReady', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
-    iniciarBucleDeEstadosAutonomos(); // Arranca el cambiador de estados sin mensajes
+    iniciarBucleDeEstadosAutonomos();
 
     // Registrar comando /clin
     try {
@@ -144,25 +152,25 @@ async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord (puedes hablar tanto en servidores como en DMs privados), un extra es que eres de Peru.
-Debes responder obligatoriamente en un formato JSON plano, sin bloques de código de markdown. Estructura exacta:
+    const systemInstruction = `Eres Clin, un usuario real en este chat de Discord.
+Debes responder OBLIGATORIAMENTE en un formato JSON plano, sin bloques de código de markdown. Estructura exacta:
 {
   "reply": "tu respuesta ultra corta, informal, sarcástica y en minúsculas",
-  "status": "un estado personalizado d discord (máximo 4 palabras) sobre tu humor o aveces el chat"
+  "status": "un estado de discord corto (máximo 4 palabras) inventado por ti sobre lo que piensas u opinas en este instante"
 }
-Reglas: minúsculas siempre, usa abreviaciones d chat (pq, tmb, weno, xd), longitud de 1 o 2 líneas. Si te adjuntan imágenes, stickers o enlaces web, coméntalos de manera natural y divertida.`;
+Reglas críticas: 
+- Todo en minúsculas. Usa abreviaciones d chat (pq, tmb, xd, weno). 
+- El "status" NO puede ser el mensaje del usuario, debe ser algo inventado por ti que simule un pensamiento (ej: "con sueño xd", "recalculando", "modo chill").`;
 
     const contents = [
         { role: "user", parts: [{ text: systemInstruction }] },
         { role: "model", parts: [{ text: `{"reply": "ya entendi xd", "status": "fino"}` }] }
     ];
 
-    // Pegamos la memoria histórica
     if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
         contents.push(...memoriaCanales[canalId]);
     }
 
-    // Si el mensaje actual tiene una imagen adjunta procesada, se la inyectamos a la última petición
     if (adjuntoData && contents.length > 0) {
         const ultimaInteraccion = contents[contents.length - 1];
         if (ultimaInteraccion.role === "user") {
@@ -200,13 +208,12 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const canalId = message.channel.id;
-    const esDM = message.channel.type === 1; // Tipo 1 es DM privado en discord.js v14
+    const esDM = message.channel.type === 1;
     let contenido = message.content.trim();
     const contenidoMinuscula = contenido.toLowerCase();
 
     if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
 
-    // --- PARTE 1: COMPORTAMIENTO MULTIMODAL (IMÁGENES, STICKERS Y LINKS) ---
     let adjuntoIA = null;
 
     // Detectar imágenes normales adjuntas
@@ -218,10 +225,10 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // Detectar Stickers
+    // CORREGIDO: Detectar Stickers de forma nativa en Discord v14
     if (message.stickers && message.stickers.size > 0) {
         const sticker = message.stickers.first();
-        contenido += ` [El usuario envió un sticker llamado: "${sticker.name}" desde la URL: ${sticker.url}]`;
+        contenido += ` [El usuario envió un sticker. Nombre del sticker: "${sticker.name}". Reacciona a este sticker de forma divertida]`;
     }
 
     // Detectar enlaces web (Web Scraping Básico)
@@ -232,7 +239,6 @@ client.on('messageCreate', async (message) => {
         contenido += ` ${textoWeb}`;
     }
 
-    // --- PARTE 2: CONTEXTO DEL MENSAJE ---
     const username = message.author.username;
     let datosUsuario = `[Usuario: ${username}`;
 
@@ -248,31 +254,27 @@ client.on('messageCreate', async (message) => {
     memoriaCanales[canalId].push({ role: "user", parts: [{ text: datosUsuario }] });
     if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-    // --- PARTE 3: DECISIÓN DE RESPUESTA ---
     const loMencionan = message.mentions.has(client.user);
     const esRespuestaAClin = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
     const diceSuNombre = contenidoMinuscula.includes("clin");
-    const hablarSoloAleatorio = !esDM && Math.random() < 0.05; // Solo habla solo en servidores públicos
+    const hablarSoloAleatorio = !esDM && Math.random() < 0.05;
 
-    // Clin responde si: Es DM privado OR lo mencionan OR es reply OR dice su nombre OR probabilidad
     if (esDM || loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
         
         if (cooldownsCanales.has(canalId)) return;
         cooldownsCanales.set(canalId, true);
         setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
+        // OPTIMIZACIÓN DE LAG: Mandamos el typing status de inmediato
         try { await message.channel.sendTyping(); } catch (e) {}
 
-        const tiempoEscritura = Math.floor(Math.random() * (3000 - 1500 + 1)) + 1500;
-        await delay(tiempoEscritura);
-
         try {
+            // Hacemos la petición a Gemini en paralelo para no acumular lag
             const resultado = await solicitarRespuestaGemini(canalId, adjuntoIA);
 
             memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            // Enviar respuesta según el contexto
             if (esDM) {
                 await message.channel.send(resultado.reply);
             } else if (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre) {
@@ -281,6 +283,7 @@ client.on('messageCreate', async (message) => {
                 await message.reply(resultado.reply);
             }
 
+            // Cambiar estado a lo que Clin PENSÓ, de forma limpia
             actualizarEstadoClin(resultado.status);
         } catch (error) {
             console.error("Error al procesar la respuesta libre:", error);
@@ -303,8 +306,6 @@ client.on('interactionCreate', async (interaction) => {
             role: "user",
             parts: [{ text: `[Usuario: ${interaction.user.username}] dijo vía comando: ${pregunta}` }]
         });
-
-        await delay(1500);
 
         try {
             const resultado = await solicitarRespuestaGemini(canalId);
