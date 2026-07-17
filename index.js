@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin Versión 3: Concurrente, Libre y Autónomo está Live!');
+    res.send('🤖 ¡Clin Versión 3 con Manejo de Cuotas está Live!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -18,7 +18,7 @@ setInterval(async () => {
     } catch (e) {
         console.log('Error en auto-ping, ignorando...');
     }
-}, 300000); // Cada 5 minutos
+}, 300000);
 
 // 2. Cliente de Discord configurado para Servidores y DMs
 const client = new Client({
@@ -39,11 +39,11 @@ const LIMITE_MEMORIA = 15;
 
 // Control de última actividad por canal (para revivir canales muertos)
 const ultimaActividadCanal = {};
-const TIEMPO_CANAL_MUERTO = 10800000; // 3 horas en milisegundos
+const TIEMPO_CANAL_MUERTO = 10800000; // 3 horas
 
 // Cooldown para evitar abusos por canal
 const cooldownsCanales = new Map();
-const TIEMPO_COOLDOWN = 3000; // 3 segundos
+const TIEMPO_COOLDOWN = 3000;
 
 // Función para cambiar el estado de Clin (Libertad absoluta)
 function actualizarEstadoClin(nuevoEstado) {
@@ -59,15 +59,15 @@ function actualizarEstadoClin(nuevoEstado) {
     }
 }
 
-// Bucle Autónomo de Estados: Cambia cuando quiere, libre del chat (Cada 8 a 15 minutos)
+// Bucle Autónomo de Estados: Optimizado para cambiar de forma más espaciada (Cada 15 a 30 minutos)
 function iniciarBucleDeEstadosAutonomos() {
-    const tiempoAleatorio = Math.floor(Math.random() * (900000 - 480000 + 1)) + 480000;
+    const tiempoAleatorio = Math.floor(Math.random() * (1800000 - 900000 + 1)) + 900000;
     setTimeout(async () => {
         try {
             const apiKey = process.env.OPENROUTER_API_KEY;
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
             
-            const frasesEjemplo = ["saludando gente xd", "viendo memes", "con ganas de molestar", "programando a medias", "modo chill activo", "viviendo la vida"];
+            const frasesEjemplo = ["saludando gente xd", "viendo memes", "con ganas de molestar", "modo chill activo", "viviendo la vida"];
             const response = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -81,7 +81,7 @@ function iniciarBucleDeEstadosAutonomos() {
                 actualizarEstadoClin(data.candidates[0].content.parts[0].text.trim());
             }
         } catch (e) {
-            console.log("Error en ciclo de estado independiente.");
+            console.log("Error en ciclo de estado independiente o cuota llena, reintentando luego.");
         }
         iniciarBucleDeEstadosAutonomos();
     }, tiempoAleatorio);
@@ -108,9 +108,7 @@ setInterval(async () => {
                     const responseText = await response.text();
                     const data = JSON.parse(responseText);
                     if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                        const fraseRevivir = data.candidates[0].content.parts[0].text.trim();
-                        await canal.send(fraseRevivir);
-                        // Reiniciamos el contador del canal para que no spamee
+                        await canal.send(data.candidates[0].content.parts[0].text.trim());
                         ultimaActividadCanal[canalId] = Date.now();
                     }
                 }
@@ -119,7 +117,7 @@ setInterval(async () => {
             }
         }
     }
-}, 1800000); // Revisa cada 30 minutos
+}, 1800000);
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
@@ -152,7 +150,6 @@ async function rasparLink(url) {
 
 client.once('clientReady', async () => {
     console.log(`🤖 ¡Clin Versión 3 en línea como: ${client.user.tag}!`);
-    actualizarEstadoClin("modo chill activo");
     iniciarBucleDeEstadosAutonomos();
 
     try {
@@ -174,7 +171,7 @@ async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord (puedes hablar tanto en servidores como en DMs privados) aparte eres de Peru.
+    const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord (puedes hablar tanto en servidores como en DMs privados).
 Hablas de forma ultra corta, directa y muy informal (como un joven d internet).
 - NUNCA saludes de forma robótica ni uses formatos JSON. Responde con TEXTO PLANO LIMPIO.
 - Escribe siempre en minúsculas. Usa abreviaciones d chat (pq, tmb, weno, xd, ntp).
@@ -206,7 +203,14 @@ Hablas de forma ultra corta, directa y muy informal (como un joven d internet).
     const responseText = await response.text();
     const data = JSON.parse(responseText);
 
-    if (data.error) throw new Error(data.error.message);
+    // Capturamos explícitamente si el error es de cuota (Rate Limit / Quota Exceeded)
+    if (data.error) {
+        if (data.error.message.includes("quota") || data.error.code === 429) {
+            return "CUOTA_EXCEDIDA";
+        }
+        throw new Error(data.error.message);
+    }
+
     if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text.trim();
     }
@@ -218,7 +222,7 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const canalId = message.channel.id;
-    ultimaActividadCanal[canalId] = Date.now(); // Actualiza la actividad para el bucle de canales muertos
+    ultimaActividadCanal[canalId] = Date.now();
 
     const esDM = message.channel.type === 1;
     let contenido = message.content.trim();
@@ -273,7 +277,6 @@ client.on('messageCreate', async (message) => {
         cooldownsCanales.set(canalId, true);
         setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
-        // EJECUCIÓN CONCURRENTE: Manejado de forma asíncrona inmediata (no traba otros mensajes)
         (async () => {
             try { await message.channel.sendTyping(); } catch (e) {}
 
@@ -281,8 +284,21 @@ client.on('messageCreate', async (message) => {
             await delay(tiempoEscritura);
 
             try {
-                // Petición limpia en texto plano (adiós lag de parseo JSON)
                 const respuestaTextual = await solicitarRespuestaGemini(canalId, adjuntoIA);
+
+                // Si la cuota se llenó, mandamos una respuesta humana en vez de quedarnos congelados
+                if (respuestaTextual === "CUOTA_EXCEDIDA") {
+                    const respuestasControladas = [
+                        "ntp aguanta un toque q me dio calambre x tanta solicitud xd",
+                        "bájenle al spam q me congelan de la api d google",
+                        "ando medio tieso ahorita aguanten un minuto xfa xd",
+                        "mucha ráfaga d mensajes ando recalculando"
+                    ];
+                    const fraseCuota = respuestasControladas[Math.floor(Math.random() * respuestasControladas.length)];
+                    if (esDM) await message.channel.send(fraseCuota);
+                    else await message.reply(fraseCuota);
+                    return;
+                }
 
                 memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaTextual }] });
                 if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
@@ -299,7 +315,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// Manejador del comando /clin concurrente
+// Manejador del comando /clin concurrente con manejo de cuota
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -307,7 +323,6 @@ client.on('interactionCreate', async (interaction) => {
         const pregunta = interaction.options.getString('pregunta');
         const canalId = interaction.channel.id;
 
-        // Se procesa de forma aislada
         (async () => {
             await interaction.deferReply();
             if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
@@ -317,6 +332,12 @@ client.on('interactionCreate', async (interaction) => {
 
             try {
                 const respuesta = await solicitarRespuestaGemini(canalId);
+                
+                if (respuesta === "CUOTA_EXCEDIDA") {
+                    await interaction.editReply({ content: "⚠️ aguanta un toque q me sature d peticiones xd intenta en un min" });
+                    return;
+                }
+
                 memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuesta }] });
                 if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
