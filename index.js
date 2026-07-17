@@ -69,13 +69,13 @@ client.once('clientReady', async () => {
     }
 });
 
-// Sistema centralizado de peticiones a la IA (Gemini 3.5 Flash) con retorno JSON estructurado
+// Sistema centralizado de peticiones a la IA (Gemini 3.5 Flash)
 async function solicitarRespuestaGemini(canalId) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord.
-Debes responder obligatoriamente en formato JSON con la siguiente estructura exacta:
+Debes responder obligatoriamente en un formato JSON plano, sin bloques de código de markdown (no uses \`\`\`json ni nada de eso). Tu respuesta debe ser estrictamente un objeto JSON con esta estructura exacta:
 {
   "reply": "tu respuesta ultra corta, informal, sarcástica y en minúsculas",
   "status": "un estado personalizado de discord (máximo 4 palabras) que describa lo que estás haciendo o pensando en este momento según tu humor o lo que se habla en el chat"
@@ -111,11 +111,8 @@ Reglas para tu "status":
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            contents: historialConInstruccion,
-            // CORREGIDO: Usamos snake_case "response_mime_type" para que Google lo reconozca
-            generationConfig: {
-                response_mime_type: "application/json"
-            }
+            contents: historialConInstruccion
+            // Eliminamos "generationConfig" para evitar errores de campos desconocidos en Google
         })
     });
 
@@ -132,7 +129,15 @@ Reglas para tu "status":
     }
 
     if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-        const textoJSON = data.candidates[0].content.parts[0].text;
+        let textoJSON = data.candidates[0].content.parts[0].text.trim();
+        
+        // Limpiamos posibles marcas de formato que la IA a veces pone por error
+        if (textoJSON.startsWith("```json")) {
+            textoJSON = textoJSON.replace(/^```json/, "").replace(/```$/, "").trim();
+        } else if (textoJSON.startsWith("```")) {
+            textoJSON = textoJSON.replace(/^```/, "").replace(/```$/, "").trim();
+        }
+
         try {
             const resultadoIA = JSON.parse(textoJSON);
             return {
@@ -140,6 +145,7 @@ Reglas para tu "status":
                 status: resultadoIA.status || "en el limbo"
             };
         } catch (e) {
+            // Si por alguna razón la IA responde texto plano en lugar de JSON, lo manejamos limpiamente
             return {
                 reply: textoJSON,
                 status: "pensando..."
