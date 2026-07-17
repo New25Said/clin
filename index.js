@@ -32,7 +32,7 @@ const LIMITE_MEMORIA = 15;
 const cooldownsCanales = new Map();
 const TIEMPO_COOLDOWN = 4000;
 
-// Función para cambiar el estado de Clin de forma autónoma
+// Función para cambiar el estado de Clin a lo que él mismo decida
 function actualizarEstadoClin(nuevoEstado) {
     try {
         if (!nuevoEstado) return;
@@ -144,11 +144,11 @@ async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord (puedes hablar tanto en servidores como en DMs privados).
+    const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord (puedes hablar tanto en servidores como en DMs privados), un extra es que eres de Peru.
 Debes responder obligatoriamente en un formato JSON plano, sin bloques de código de markdown. Estructura exacta:
 {
   "reply": "tu respuesta ultra corta, informal, sarcástica y en minúsculas",
-  "status": "un estado personalizado d discord (máximo 4 palabras) sobre tu humor o el chat"
+  "status": "un estado personalizado d discord (máximo 4 palabras) sobre tu humor o aveces el chat"
 }
 Reglas: minúsculas siempre, usa abreviaciones d chat (pq, tmb, weno, xd), longitud de 1 o 2 líneas. Si te adjuntan imágenes, stickers o enlaces web, coméntalos de manera natural y divertida.`;
 
@@ -227,8 +227,8 @@ client.on('messageCreate', async (message) => {
     // Detectar enlaces web (Web Scraping Básico)
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     if (urlRegex.test(contenido)) {
-        const links encontrados = contenido.match(urlRegex);
-        const textoWeb = await rasparLink(encontrados[0]);
+        const linksEncontrados = contenido.match(urlRegex);
+        const textoWeb = await rasparLink(linksEncontrados[0]);
         contenido += ` ${textoWeb}`;
     }
 
