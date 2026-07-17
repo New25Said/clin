@@ -53,7 +53,7 @@ function actualizarEstadoAleatorio() {
     }
 }
 
-client.once('clientReady', async () => {
+client.once('ready', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
     actualizarEstadoAleatorio(); // Establecer estado inicial
 
@@ -84,30 +84,36 @@ async function solicitarRespuestaGemini(canalId) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const systemInstruction = `Eres Clin, un usuario real en un servidor de Discord.
-Hablas de forma ultra corta, directa y muy informal (estilo chat de jóvenes en español).
-- NO saludes formalmente. NO uses introducciones aburridas.
-- Escribe en minúsculas de forma natural, usa abreviaciones (pq, tmb, weno, xq, d, ntp).
-- Sé un poco sarcástico, divertido, relajado y directo.
-- NO uses formato de bot, solo responde como si fueras un miembro más del chat.
-- Mantén tus respuestas en 1 o máximo 2 líneas.
-- Tienes acceso al historial de la conversación que se te proporciona para que recuerdes qué se ha dicho antes.`;
+    const systemInstruction = `Instrucción de sistema muy importante: Eres Clin, un usuario real más en este chat de Discord.
+Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
+- NUNCA saludes de forma robótica. NO uses introducciones como "como bot de discord" o "hola, soy Clin".
+- Escribe siempre en minúsculas de forma natural.
+- Usa abreviaciones de chat de forma natural si encajan (pq, tmb, weno, xq, d, ntp, xd).
+- Sé un poco sarcástico, divertido, relajado y directo. Solo responde a la última pregunta usando el contexto anterior.
+- Responde en una sola línea corta (máximo 2 líneas si es muy necesario).`;
 
-    // Filtramos la memoria para asegurarnos de no enviar un historial vacío o con un formato que rompa a Gemini
-    const historialValido = memoriaCanales[canalId] && memoriaCanales[canalId].length > 0
-        ? memoriaCanales[canalId]
-        : [{ role: "user", parts: [{ text: "hola" }] }];
+    // Inicializamos el historial siempre con la instrucción del sistema en el primer mensaje de "user"
+    const historialConInstruccion = [
+        {
+            role: "user",
+            parts: [{ text: systemInstruction }]
+        },
+        {
+            role: "model",
+            parts: [{ text: "entendido, de ahora en adelante hablaré así, en minúsculas, ultra corto, directo y relajado xd. ¿qué pasó?" }]
+        }
+    ];
+
+    // Si hay memoria previa en el canal, la pegamos después de la instrucción inicial
+    if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
+        historialConInstruccion.push(...memoriaCanales[canalId]);
+    }
 
     const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            contents: historialValido,
-            // Ajustamos la estructura exacta que la API v1 de Gemini pide para las System Instructions
-            systemInstruction: {
-                role: "system",
-                parts: [{ text: systemInstruction }]
-            }
+            contents: historialConInstruccion
         })
     });
 
@@ -157,7 +163,6 @@ client.on('messageCreate', async (message) => {
     const hablarSoloAleatorio = Math.random() < 0.05; // 5% de probabilidad
 
     if (loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
-        // Hacemos que "escriba..." protegiéndolo de caídas de Discord
         try {
             await message.channel.sendTyping();
         } catch (e) {
@@ -221,7 +226,7 @@ client.on('interactionCreate', async (interaction) => {
             actualizarEstadoAleatorio(); // Actualiza el estado también al usar comandos
         } catch (error) {
             console.error("Error en comando /clin:", error);
-            await interaction.editReply({ content: "❌ ando medio tonto ahorita, no pude procesar eso, nose we preguntale a un tal @sa1xp a ver si sabe que webada me pasa crack." });
+            await interaction.editReply({ content: "we... estoy bugeado, llamen a dios 😰😭" });
         }
     }
 });
