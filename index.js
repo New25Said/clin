@@ -6,17 +6,19 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin está vivo, lee el chat, tiene comandos y estado dinámico!');
+    res.send('🤖 ¡Clin en su versión final ultra humana está vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
-// 2. Cliente de Discord con los permisos necesarios
+// 2. Cliente de Discord con permisos completos (incluyendo Presencias y Miembros)
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildPresences, // Para poder leer estados personalizados de la gente
+        GatewayIntentBits.GuildMembers   // Para poder leer apodos reales del servidor
     ],
     partials: [Partials.Channel, Partials.Message]
 });
@@ -25,7 +27,7 @@ const client = new Client({
 const memoriaCanales = {};
 const LIMITE_MEMORIA = 15;
 
-// Lista de estados humanos graciosos para que Clin se cambie el "Custom Status"
+// Lista de estados humanos graciosos para el "Custom Status" de Clin
 const estadosClin = [
     "viendo que almorzar...",
     "peleando con el internet",
@@ -37,10 +39,13 @@ const estadosClin = [
     "tratando de no crashearme otra vez",
     "con ganas de ignorar a todos",
     "viviendo gratis en render xd",
-    "pensando en la inmortalidad del cangrejo"
+    "pensando en la inmortalidad del cangrejo",
+    "jugando algo piola",
+    "ignorando mis responsabilidades",
+    "en mi momento más humilde"
 ];
 
-// Función para cambiar el estado de Clin a uno aleatorio
+// Función para cambiar el estado de Clin de forma orgánica y asíncrona
 function actualizarEstadoAleatorio() {
     try {
         const estadoRandom = estadosClin[Math.floor(Math.random() * estadosClin.length)];
@@ -55,9 +60,9 @@ function actualizarEstadoAleatorio() {
 
 client.once('ready', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
-    actualizarEstadoAleatorio(); // Establecer estado inicial
+    actualizarEstadoAleatorio(); // Estado inicial al prenderse
 
-    // Registramos nuevamente el comando /clin
+    // Registrar comando /clin
     try {
         await client.application.commands.set([
             {
@@ -79,7 +84,7 @@ client.once('ready', async () => {
     }
 });
 
-// Sistema centralizado de peticiones a la IA
+// Sistema centralizado de peticiones a la IA (Gemini 3.5 Flash)
 async function solicitarRespuestaGemini(canalId) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
@@ -89,10 +94,11 @@ Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
 - NUNCA saludes de forma robótica. NO uses introducciones como "como bot de discord" o "hola, soy Clin".
 - Escribe siempre en minúsculas de forma natural.
 - Usa abreviaciones de chat de forma natural si encajan (pq, tmb, weno, xq, d, ntp, xd).
-- Sé un poco sarcástico, divertido, relajado y directo. Solo responde a la última pregunta usando el contexto anterior.
-- Responde en una sola línea corta (máximo 2 líneas si es muy necesario).`;
+- Sé un poco sarcástico, divertido, relajado y directo.
+- Responde a la última intervención usando el contexto anterior de lo que han estado hablando.
+- Mantén tus respuestas súper cortas, en una sola línea (máximo 2 líneas si es muy necesario).
+- Se te proporciona información de los usuarios (su apodo, estado de conexión y lo que tienen escrito en su actividad de Discord) para que puedas comentar sobre ello con total naturalidad si te preguntan o quieres bromear con eso.`;
 
-    // Inicializamos el historial siempre con la instrucción del sistema en el primer mensaje de "user"
     const historialConInstruccion = [
         {
             role: "user",
@@ -104,7 +110,6 @@ Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
         }
     ];
 
-    // Si hay memoria previa en el canal, la pegamos después de la instrucción inicial
     if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
         historialConInstruccion.push(...memoriaCanales[canalId]);
     }
@@ -122,12 +127,10 @@ Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
     try {
         data = JSON.parse(responseText);
     } catch (e) {
-        console.error("Respuesta no-JSON de Google:", responseText);
         throw new Error("El servidor de Google no envió un JSON válido");
     }
 
     if (data.error) {
-        console.error("Error devuelto por la API de Google:", JSON.stringify(data.error));
         throw new Error(data.error.message);
     }
 
@@ -135,7 +138,6 @@ Hablas de forma ultra corta, directa y muy informal (como un joven de internet).
         return data.candidates[0].content.parts[0].text;
     }
     
-    console.log("Respuesta extraña de Google:", JSON.stringify(data));
     throw new Error("Formato de respuesta inesperado de Google");
 }
 
@@ -149,10 +151,19 @@ client.on('messageCreate', async (message) => {
 
     if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
 
-    // Registrar mensaje en la memoria
+    // Obtener información detallada del usuario para dársela a Clin
+    const nickname = message.member ? message.member.displayName : message.author.username;
+    const username = message.author.username;
+    const presencia = message.member?.presence;
+    const estadoConexion = presencia ? presencia.status : 'offline/invisible';
+    
+    // Obtener su estado personalizado de Discord si tiene uno puesto
+    const customStatus = presencia?.activities.find(act => act.type === ActivityType.Custom)?.state || 'ninguno';
+
+    // Registrar mensaje en la memoria con todos los datos contextuales del "humano"
     memoriaCanales[canalId].push({
         role: "user",
-        parts: [{ text: `${message.author.username} dijo: ${contenido}` }]
+        parts: [{ text: `[Usuario: ${username} | Apodo: ${nickname} | Estado: ${estadoConexion} | EstadoPersonalizado: "${customStatus}"] dijo: ${contenido}` }]
     });
 
     if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
@@ -160,9 +171,12 @@ client.on('messageCreate', async (message) => {
     const loMencionan = message.mentions.has(client.user);
     const esRespuestaAClin = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
     const diceSuNombre = contenidoMinuscula.includes("clin");
-    const hablarSoloAleatorio = Math.random() < 0.05; // 5% de probabilidad
+    
+    // 5% de probabilidad de meterse a la charla de la nada
+    const hablarSoloAleatorio = Math.random() < 0.05; 
 
     if (loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
+        // Activamos la burbuja verde de "Escribiendo..." con total protección contra caídas de Discord
         try {
             await message.channel.sendTyping();
         } catch (e) {
@@ -179,16 +193,25 @@ client.on('messageCreate', async (message) => {
 
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            // Enviar respuesta limpia y actualizar el estado
+            // Enviar respuesta limpia
             if (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre) {
                 await message.channel.send(respuestaIA);
             } else {
                 await message.reply(respuestaIA);
             }
 
-            actualizarEstadoAleatorio(); // Cambia su estado en cada respuesta
+            // Cambiar estado de forma orgánica al azar (no siempre, solo el 40% de las veces que responde para que se vea real)
+            if (Math.random() < 0.40) {
+                actualizarEstadoAleatorio();
+            }
         } catch (error) {
             console.error("Error en proceso de respuesta libre:", error);
+        }
+    } else {
+        // Si Clin solo lee el chat de fondo y no responde, tiene un 2% de probabilidad de cambiar su estado
+        // Esto hace que cambie su estado de la nada mientras ustedes hablan, ¡súper realista!
+        if (Math.random() < 0.02) {
+            actualizarEstadoAleatorio();
         }
     }
 });
@@ -205,10 +228,12 @@ client.on('interactionCreate', async (interaction) => {
 
         if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
 
-        // Guardamos la pregunta del comando en la memoria para que no se pierda el hilo
+        const nickname = interaction.member ? interaction.member.displayName : interaction.user.username;
+        const username = interaction.user.username;
+
         memoriaCanales[canalId].push({
             role: "user",
-            parts: [{ text: `${interaction.user.username} dijo: ${pregunta}` }]
+            parts: [{ text: `[Usuario: ${username} | Apodo: ${nickname}] dijo vía comando: ${pregunta}` }]
         });
 
         try {
@@ -221,12 +246,15 @@ client.on('interactionCreate', async (interaction) => {
 
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            // Respondemos de forma limpia directamente
             await interaction.editReply({ content: respuestaIA });
-            actualizarEstadoAleatorio(); // Actualiza el estado también al usar comandos
+            
+            // Probabilidad orgánica de cambiar estado tras el comando
+            if (Math.random() < 0.40) {
+                actualizarEstadoAleatorio();
+            }
         } catch (error) {
             console.error("Error en comando /clin:", error);
-            await interaction.editReply({ content: "we... estoy bugeado, llamen a dios 😰😭" });
+            await interaction.editReply({ content: "❌ ando medio tonto ahorita, no pude procesar eso." });
         }
     }
 });
