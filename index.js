@@ -14,12 +14,12 @@ app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 // Sistema de Auto-Ping para evitar que Render congele la CPU del bot
 setInterval(async () => {
     try {
-        await fetch(`[https://clin-7bfb.onrender.com/](https://clin-7bfb.onrender.com/)`);
+        await fetch(`https://clin-7bfb.onrender.com/`);
         console.log('⏰ Auto-ping de optimización enviado para mantener despierto a Clin.');
     } catch (e) {
         console.log('Error en auto-ping, ignorando...');
     }
-}, 300000); // Cada 5 minutos
+}, 300000); // Cada 5 minutos (300,000 ms)
 
 // 2. Cliente de Discord con todos los intents y partials necesarios
 const client = new Client({
@@ -42,15 +42,6 @@ const LIMITE_MEMORIA = 15;
 const cooldownsCanales = new Map();
 const TIEMPO_COOLDOWN = 4000;
 
-// Lista de respuestas de respaldo si la IA falla catastróficamente
-const respuestasFallo = [
-    "recalculando... ando medio tonto xd",
-    "se me cruzaron los cables un toque",
-    "no se, me dio amnesia temporal",
-    "f en el chat por mi cerebro",
-    "espera q me dio lag mental"
-];
-
 // Función para cambiar el estado de Clin
 function actualizarEstadoClin(nuevoEstado) {
     try {
@@ -60,35 +51,19 @@ function actualizarEstadoClin(nuevoEstado) {
             activities: [{ name: limpio, type: ActivityType.Custom }],
             status: 'online'
         });
+        console.log(`Estado de Clin actualizado a: "${limpio}"`);
     } catch (err) {
         console.error("Error al actualizar estado:", err);
     }
 }
 
-// Función humana: Cambiar nickname dinámicamente en servidores para simular más personalidad
-async function actualizarApodoAleatorio() {
-    const apodos = ["clin desvelado", "clin humilde", "clin programador", "clin de chill", "clin existencial", "clin premium"];
-    const apodoElegido = apodos[Math.floor(Math.random() * apodos.length)];
-    
-    client.guilds.cache.forEach(async (guild) => {
-        try {
-            const me = await guild.members.fetchMe();
-            if (me.permissions.has('ChangeNickname')) {
-                await me.setNickname(apodoElegido);
-            }
-        } catch (e) {
-            // Ignorar errores si no tiene permisos en algún servidor específico
-        }
-    });
-}
-
-// Bucle dinámico para que Clin cambie su estado y apodo de la nada (cada 10 a 20 minutos)
+// Bucle dinámico para que Clin cambie su estado SOLO y de la nada (cada 10 a 20 minutos)
 function iniciarBucleDeEstadosAutonomos() {
     const tiempoAleatorio = Math.floor(Math.random() * (1200000 - 600000 + 1)) + 600000;
     setTimeout(async () => {
         try {
             const apiKey = process.env.GEMINI_API_KEY;
-            const url = `[https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=$](https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=$){apiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
             
             const response = await fetch(url, {
                 method: "POST",
@@ -102,8 +77,6 @@ function iniciarBucleDeEstadosAutonomos() {
             if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
                 const nuevoEstadoRandom = data.candidates[0].content.parts[0].text.trim();
                 actualizarEstadoClin(nuevoEstadoRandom);
-                // También cambiamos su apodo para darle el toque humano
-                await actualizarApodoAleatorio();
             }
         } catch (e) {
             console.log("No se pudo actualizar el estado autónomo en este ciclo.");
@@ -147,6 +120,7 @@ async function rasparLink(url) {
     }
 }
 
+// Volvemos a tu trigger original para que levante los comandos correctamente
 client.once('ready', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
     iniciarBucleDeEstadosAutonomos();
@@ -176,23 +150,21 @@ client.once('ready', async () => {
 // Sistema centralizado de peticiones a la IA (Gemini 3.5 Flash)
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.GEMINI_API_KEY;
-    const url = `[https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=$](https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=$){apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const systemInstruction = `Eres Clin, un usuario real y sarcástico en este chat de Discord.
-Debes responder OBLIGATORIAMENTE en un formato JSON plano, sin bloques de código de markdown. Estructura exacta y estricta:
+    const systemInstruction = `Eres Clin, un usuario real en este chat de Discord.
+Debes responder OBLIGATORIAMENTE en un formato JSON plano, sin bloques de código de markdown. Estructura exacta:
 {
   "reply": "tu respuesta ultra corta, informal, sarcástica y en minúsculas",
-  "status": "un estado de discord corto (máximo 4 palabras) inventado por ti sobre lo que piensas u opinas en este instante",
-  "emoji": "un solo emoji real que combine con tu estado de ánimo actual para reaccionar al mensaje, o dejas esto vacío con \"\" si no amerita reaccionar"
+  "status": "un estado de discord corto (máximo 4 palabras) inventado por ti sobre lo que piensas u opinas en este instante"
 }
 Reglas críticas: 
-- Todo en minúsculas. Usa abreviaciones de chat (pq, tmb, xd, weno, k, d). 
-- El "status" NO puede ser el mensaje del usuario, debe ser algo inventado por ti que simule un pensamiento real (ej: "con sueño xd", "recalculando", "modo chill").
-- En "emoji" pon un emoji estándar (ej: "😂", "💀", "🤔", "🙄"). Solo uno o vacío.`;
+- Todo en minúsculas. Usa abreviaciones d chat (pq, tmb, xd, weno). 
+- El "status" NO puede ser el mensaje del usuario, debe ser algo inventado por ti que simule un pensamiento (ej: "con sueño xd", "recalculando", "modo chill").`;
 
     const contents = [
         { role: "user", parts: [{ text: systemInstruction }] },
-        { role: "model", parts: [{ text: `{"reply": "ya entendi xd", "status": "fino", "emoji": "😎"}` }] }
+        { role: "model", parts: [{ text: `{"reply": "ya entendi xd", "status": "fino"}` }] }
     ];
 
     if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
@@ -220,13 +192,14 @@ Reglas críticas:
     if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
         let textoJSON = data.candidates[0].content.parts[0].text.trim();
         
-        // Limpieza robusta anti-markdown
-        textoJSON = textoJSON.replace(/^```json/g, "").replace(/^```/g, "").replace(/```$/g, "").trim();
+        // Fix de parseo por si Gemini mete markdown de código por error
+        if (textoJSON.startsWith("```json")) textoJSON = textoJSON.replace(/^```json/, "").replace(/```$/, "").trim();
+        else if (textoJSON.startsWith("```")) textoJSON = textoJSON.replace(/^```/, "").replace(/```$/, "").trim();
 
         try {
             return JSON.parse(textoJSON);
         } catch (e) {
-            return { reply: textoJSON, status: "recalculando...", emoji: "" };
+            return { reply: textoJSON, status: "recalculando..." };
         }
     }
     throw new Error("Formato inesperado");
@@ -254,7 +227,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // Detectar Stickers nativos
+    // Detectar Stickers de forma nativa en Discord v14
     if (message.stickers && message.stickers.size > 0) {
         const sticker = message.stickers.first();
         contenido += ` [El usuario envió un sticker. Nombre del sticker: "${sticker.name}". Reacciona a este sticker de forma divertida]`;
@@ -290,28 +263,22 @@ client.on('messageCreate', async (message) => {
 
     if (esDM || loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
         
-        // Control de Cooldown Humano: Si lo spamean, tiene un 20% de probabilidad de reaccionar molesto con un emoji
-        if (cooldownsCanales.has(canalId)) {
-            if (Math.random() < 0.2) {
-                try { await message.react("🤫"); } catch(e){}
-            }
-            return;
-        }
+        if (cooldownsCanales.has(canalId)) return;
         cooldownsCanales.set(canalId, true);
         setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
-        try { await message.channel.sendTyping(); } catch (e) {}
+        // MANDAR EL "ESCRIBIENDO..." INMEDIATAMENTE
+        try { 
+            await message.channel.sendTyping(); 
+        } catch (e) {
+            console.log("No se pudo enviar el typing status");
+        }
 
         try {
             const resultado = await solicitarRespuestaGemini(canalId, adjuntoIA);
 
             memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
-
-            // Reacción Humana Nativa si la IA decidió mandar un emoji válido
-            if (resultado.emoji && resultado.emoji.trim() !== "") {
-                try { await message.react(resultado.emoji.trim()); } catch (e) { /* Emoji inválido o sin permisos */ }
-            }
 
             if (esDM) {
                 await message.channel.send(resultado.reply);
@@ -321,11 +288,11 @@ client.on('messageCreate', async (message) => {
                 await message.reply(resultado.reply);
             }
 
+            // Cambiar estado a lo que Clin PENSÓ
             actualizarEstadoClin(resultado.status);
         } catch (error) {
             console.error("Error al procesar la respuesta libre:", error);
-            const respuestaRamdomFallo = respuestasFallo[Math.floor(Math.random() * respuestasFallo.length)];
-            await message.reply(respuestaRamdomFallo);
+            try { await message.reply("ando medio tonto ahorita."); } catch(e){}
         }
     }
 });
@@ -354,15 +321,9 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ content: resultado.reply });
             actualizarEstadoClin(resultado.status);
         } catch (error) {
-            const respuestaRamdomFallo = respuestasFallo[Math.floor(Math.random() * respuestasFallo.length)];
-            await interaction.editReply({ content: `❌ ${respuestaRamdomFallo}` });
+            await interaction.editReply({ content: "❌ ando medio tonto ahorita." });
         }
     }
-});
-
-// Corrección menor en el evento ready
-client.once('ready', () => {
-    console.log('Sistemas de Clin cargados de forma óptima.');
 });
 
 client.login(process.env.DISCORD_TOKEN);
