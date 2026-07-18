@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin Versión 3 con Manejo de Cuotas está Live!');
+    res.send('🤖 ¡Clin Versión 3 Perfectamente Optimizado está Live!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -59,7 +59,7 @@ function actualizarEstadoClin(nuevoEstado) {
     }
 }
 
-// Bucle Autónomo de Estados: Optimizado para cambiar de forma más espaciada (Cada 15 a 30 minutos)
+// Bucle Autónomo de Estados: Cada 15 a 30 minutos de forma independiente
 function iniciarBucleDeEstadosAutonomos() {
     const tiempoAleatorio = Math.floor(Math.random() * (1800000 - 900000 + 1)) + 900000;
     setTimeout(async () => {
@@ -67,7 +67,7 @@ function iniciarBucleDeEstadosAutonomos() {
             const apiKey = process.env.OPENROUTER_API_KEY;
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
             
-            const frasesEjemplo = ["saludando gente xd", "viendo memes", "con ganas de molestar", "modo chill activo", "viviendo la vida"];
+            const frasesEjemplo = ["saludando gente xd", "viendo memes", "con ganas d molestar", "modo chill activo", "viviendo la vida"];
             const response = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -81,7 +81,7 @@ function iniciarBucleDeEstadosAutonomos() {
                 actualizarEstadoClin(data.candidates[0].content.parts[0].text.trim());
             }
         } catch (e) {
-            console.log("Error en ciclo de estado independiente o cuota llena, reintentando luego.");
+            console.log("Error silencioso en ciclo de estado independiente.");
         }
         iniciarBucleDeEstadosAutonomos();
     }, tiempoAleatorio);
@@ -166,14 +166,14 @@ client.once('clientReady', async () => {
     }
 });
 
-// Sistema centralizado de peticiones (Optimizado para Concurrencia en Texto Plano)
+// Sistema centralizado de peticiones (Optimizado para Texto Plano Directo)
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord (puedes hablar tanto en servidores como en DMs privados).
 Hablas de forma ultra corta, directa y muy informal (como un joven d internet).
-- NUNCA saludes de forma robótica ni uses formatos JSON. Responde con TEXTO PLANO LIMPIO.
+- NUNCA saludes de forma robótica ni uses formatos JSON. Responde únicamente con TEXTO PLANO LIMPIO.
 - Escribe siempre en minúsculas. Usa abreviaciones d chat (pq, tmb, weno, xd, ntp).
 - Responde de forma un poco sarcástica, divertida y relajada. Max 1 o 2 líneas.
 - Si te pasan imágenes, stickers o links, coméntalos de forma natural y graciosa.`;
@@ -203,9 +203,9 @@ Hablas de forma ultra corta, directa y muy informal (como un joven d internet).
     const responseText = await response.text();
     const data = JSON.parse(responseText);
 
-    // Capturamos explícitamente si el error es de cuota (Rate Limit / Quota Exceeded)
+    // CORREGIDO: Filtro estricto para que no salte por falsos positivos de error
     if (data.error) {
-        if (data.error.message.includes("quota") || data.error.code === 429) {
+        if (data.error.code === 429 || (data.error.message && data.error.message.toLowerCase().includes("quota"))) {
             return "CUOTA_EXCEDIDA";
         }
         throw new Error(data.error.message);
@@ -217,7 +217,7 @@ Hablas de forma ultra corta, directa y muy informal (como un joven d internet).
     throw new Error("Formato inesperado");
 }
 
-// Lector masivo con soporte para múltiples peticiones concurrentes
+// Lector masivo con soporte para múltiples peticiones concurrentes optimizado
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -277,22 +277,23 @@ client.on('messageCreate', async (message) => {
         cooldownsCanales.set(canalId, true);
         setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
+        // Hilo paralelo asíncrono e independiente
         (async () => {
             try { await message.channel.sendTyping(); } catch (e) {}
 
-            const tiempoEscritura = Math.floor(Math.random() * (2500 - 1200 + 1)) + 1200;
+            const tiempoEscritura = Math.floor(Math.random() * (2200 - 1000 + 1)) + 1000;
             await delay(tiempoEscritura);
 
             try {
                 const respuestaTextual = await solicitarRespuestaGemini(canalId, adjuntoIA);
 
-                // Si la cuota se llenó, mandamos una respuesta humana en vez de quedarnos congelados
+                // Solo responderá que está saturado si Google de verdad le manda un error 429
                 if (respuestaTextual === "CUOTA_EXCEDIDA") {
                     const respuestasControladas = [
-                        "ntp aguanta un toque q me dio calambre x tanta solicitud xd",
-                        "bájenle al spam q me congelan de la api d google",
-                        "ando medio tieso ahorita aguanten un minuto xfa xd",
-                        "mucha ráfaga d mensajes ando recalculando"
+                        "ntp aguanta un toque q me dio calambre",
+                        "bájenle al spam q me congelan",
+                        "ando medio tieso ahorita aguanten un minuto xfa xd"
+                        "CRASHEANDO..."
                     ];
                     const fraseCuota = respuestasControladas[Math.floor(Math.random() * respuestasControladas.length)];
                     if (esDM) await message.channel.send(fraseCuota);
@@ -309,13 +310,13 @@ client.on('messageCreate', async (message) => {
                     await message.reply(respuestaTextual);
                 }
             } catch (error) {
-                console.error("Error en flujo asíncrono concurrentes:", error);
+                console.error("Error en flujo asíncrono concurrente:", error);
             }
         })(); 
     }
 });
 
-// Manejador del comando /clin concurrente con manejo de cuota
+// Manejador del comando /clin concurrente corregido
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -328,7 +329,7 @@ client.on('interactionCreate', async (interaction) => {
             if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
 
             memoriaCanales[canalId].push({ role: "user", parts: [{ text: `[Usuario: ${interaction.user.username}] dijo: ${pregunta}` }] });
-            await delay(1200);
+            await delay(1000);
 
             try {
                 const respuesta = await solicitarRespuestaGemini(canalId);
