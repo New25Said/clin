@@ -6,21 +6,22 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin Versión 3 Perfectamente Optimizado está Live!');
+    res.send('🤖 ¡Clin Versión 3 Perfectamente Optimizado y Despierto está vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
-// Sistema de Auto-Ping para evitar que Render congele la CPU
+// Sistema de Auto-Ping para evitar que Render congele la CPU del bot
 setInterval(async () => {
     try {
         await fetch(`https://clin-7bfb.onrender.com/`);
+        console.log('⏰ Auto-ping de optimización enviado para mantener despierto a Clin.');
     } catch (e) {
         console.log('Error en auto-ping, ignorando...');
     }
-}, 300000);
+}, 300000); // Cada 5 minutos
 
-// 2. Cliente de Discord configurado para Servidores y DMs
+// 2. Cliente de Discord con todos los intents y partials necesarios
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -41,11 +42,24 @@ const LIMITE_MEMORIA = 15;
 const ultimaActividadCanal = {};
 const TIEMPO_CANAL_MUERTO = 10800000; // 3 horas
 
-// Cooldown para evitar abusos por canal
+// Cooldown para cuidar la cuota de OpenRouter
 const cooldownsCanales = new Map();
-const TIEMPO_COOLDOWN = 3000;
+const TIEMPO_COOLDOWN = 3000; // 3 segundos para fluidez masiva
 
-// Función para cambiar el estado de Clin (Libertad absoluta)
+// Lista de estados predefinidos: Libertad absoluta sin gastar cuota de IA
+const estadosClinFrases = [
+    "saludando gente xd",
+    "viendo memes",
+    "con ganas d molestar",
+    "modo chill activo",
+    "viviendo la vida",
+    "recalculando existencia",
+    "con sueño xd",
+    "viendo que onda",
+    "escuchando musica xd",
+    "jugando cositas xd"
+];
+
 function actualizarEstadoClin(nuevoEstado) {
     try {
         if (!nuevoEstado) return;
@@ -59,35 +73,21 @@ function actualizarEstadoClin(nuevoEstado) {
     }
 }
 
-// Bucle Autónomo de Estados: Cada 15 a 30 minutos de forma independiente
+// Bucle dinámico independiente: Cambia estados solo (cada 10 a 20 minutos) con 0 cuota
 function iniciarBucleDeEstadosAutonomos() {
-    const tiempoAleatorio = Math.floor(Math.random() * (1800000 - 900000 + 1)) + 900000;
-    setTimeout(async () => {
+    const tiempoAleatorio = Math.floor(Math.random() * (1200000 - 600000 + 1)) + 600000;
+    setTimeout(() => {
         try {
-            const apiKey = process.env.OPENROUTER_API_KEY;
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-            
-            const frasesEjemplo = ["saludando gente xd", "viendo memes", "con ganas d molestar", "modo chill activo", "viviendo la vida"];
-            const response = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ role: "user", parts: [{ text: `Inventa un estado corto de perfil para discord (máx 4 palabras). Estilo joven informal, minúsculas. Ejemplos tuyos: ${frasesEjemplo.join(', ')}. Devuelve SOLO el texto plano sin comillas.` }] }]
-                })
-            });
-            const responseText = await response.text();
-            const data = JSON.parse(responseText);
-            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                actualizarEstadoClin(data.candidates[0].content.parts[0].text.trim());
-            }
+            const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
+            actualizarEstadoClin(fraseAleatoria);
         } catch (e) {
-            console.log("Error silencioso en ciclo de estado independiente.");
+            console.log("Error en ciclo de estado independiente.");
         }
         iniciarBucleDeEstadosAutonomos();
     }, tiempoAleatorio);
 }
 
-// Bucle Autónomo para Revivir Canales Muertos (Revisa cada 30 minutos)
+// Bucle Autónomo para Revivir Canales Muertos (Cada 30 minutos revisa)
 setInterval(async () => {
     const ahora = Date.now();
     for (const canalId in ultimaActividadCanal) {
@@ -95,21 +95,10 @@ setInterval(async () => {
             try {
                 const canal = await client.channels.fetch(canalId);
                 if (canal && canal.isTextBased()) {
-                    const apiKey = process.env.OPENROUTER_API_KEY;
-                    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-                    
-                    const response = await fetch(url, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            contents: [{ role: "user", parts: [{ text: "Escribe una frase ultra corta (una sola línea) en minúsculas para revivir un grupo de discord que está totalmente muerto y aburrido. Sé informal y directo. No uses saludos de bot." }] }]
-                        })
-                    });
-                    const responseText = await response.text();
-                    const data = JSON.parse(responseText);
-                    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                        await canal.send(data.candidates[0].content.parts[0].text.trim());
-                        ultimaActividadCanal[canalId] = Date.now();
+                    const respuesta = await solicitarRespuestaGemini(canalId);
+                    if (respuesta !== "CUOTA_EXCEDIDA") {
+                        await canal.send(respuesta);
+                        ultimaActividadCanal[canalId] = Date.now(); // Resetea
                     }
                 }
             } catch (e) {
@@ -121,6 +110,7 @@ setInterval(async () => {
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
+// Función para descargar imágenes y convertirlas a formato Base64 para Gemini
 async function urlToBase64(url) {
     try {
         const res = await fetch(url);
@@ -132,97 +122,109 @@ async function urlToBase64(url) {
             }
         };
     } catch (e) {
+        console.error("Error al convertir imagen a Base64:", e);
         return null;
     }
 }
 
+// Función de raspado web (Web scraping ultraligero para links)
 async function rasparLink(url) {
     try {
         const res = await fetch(url);
         const html = await res.text();
         const titulo = html.match(/<title>([^<]+)<\/title>/)?.[1] || "Web";
-        const cuerpoLimpio = html.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '').replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').substring(0, 1000);
-        return `[Contenido del Link: "${titulo}" -> ${cuerpoLimpio}]`;
+        return `[Contenido del Link: "${titulo}"]`;
     } catch (e) {
-        return `[No se pudo leer el link]`;
+        return `[No se pudo leer el contenido del link]`;
     }
 }
 
 client.once('clientReady', async () => {
-    console.log(`🤖 ¡Clin Versión 3 en línea como: ${client.user.tag}!`);
+    console.log(`🤖 En línea y observando como: ${client.user.tag}`);
+    actualizarEstadoClin("modo chill activo");
     iniciarBucleDeEstadosAutonomos();
 
+    // Registrar comando /clin
     try {
         await client.application.commands.set([
             {
                 name: 'clin',
                 description: 'Pregúntale algo directamente a Clin',
-                options: [{ name: 'pregunta', description: 'Tu pregunta para Clin', type: ApplicationCommandOptionType.String, required: true }]
+                options: [
+                    {
+                        name: 'pregunta',
+                        description: 'Tu pregunta o mensaje para Clin',
+                        type: ApplicationCommandOptionType.String,
+                        required: true
+                    }
+                ]
             }
         ]);
-        console.log('¡Comando /clin registrado!');
+        console.log('¡Comando /clin registrado con éxito!');
     } catch (error) {
         console.error('Error al registrar comando:', error);
     }
 });
 
-// Sistema centralizado de peticiones (Optimizado para Texto Plano Directo)
+// Sistema centralizado de peticiones formateado de verdad para OpenRouter AI (Texto Plano Puro)
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.OPENROUTER_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+    const url = "https://openrouter.ai/api/v1/chat/completions";
 
-    const systemInstruction = `Eres Clin, un usuario real más en este chat de Discord (puedes hablar tanto en servidores como en DMs privados).
-Hablas de forma ultra corta, directa y muy informal (como un joven d internet).
-- NUNCA saludes de forma robótica ni uses formatos JSON. Responde únicamente con TEXTO PLANO LIMPIO.
-- Escribe siempre en minúsculas. Usa abreviaciones d chat (pq, tmb, weno, xd, ntp).
-- Responde de forma un poco sarcástica, divertida y relajada. Max 1 o 2 líneas.
-- Si te pasan imágenes, stickers o links, coméntalos de forma natural y graciosa.`;
+    const systemInstruction = "Eres Clin, un usuario real e informal en este chat de Discord. Hablas de forma ultra corta (máximo 1 o 2 líneas), siempre en minúsculas, usas xd, pq, tmb, weno, ntp. Sé directo, algo sarcástico y relajado. Responde SOLO en texto plano sin formatos raros.";
 
-    const contents = [
-        { role: "user", parts: [{ text: systemInstruction }] },
-        { role: "model", parts: [{ text: "ya entendi xd, hablaré normal en texto plano y en minúsculas." }] }
-    ];
+    // Mapear historial al formato oficial de OpenRouter (messages)
+    const messages = [{ role: "system", content: systemInstruction }];
 
     if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
-        contents.push(...memoriaCanales[canalId]);
+        memoriaCanales[canalId].forEach(msg => {
+            const roleMapped = msg.role === "model" ? "assistant" : "user";
+            let textContent = msg.parts.map(p => p.text || "").join(" ");
+            messages.push({ role: roleMapped, content: textContent });
+        });
     }
 
-    if (adjuntoData && contents.length > 0) {
-        const ultimaInteraccion = contents[contents.length - 1];
-        if (ultimaInteraccion.role === "user") {
-            ultimaInteraccion.parts.push(adjuntoData);
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: "google/gemini-2.5-flash", // Modelo óptimo de OpenRouter
+                messages: messages
+            })
+        });
+
+        if (response.status === 429) return "CUOTA_EXCEDIDA";
+
+        const data = await response.json();
+
+        if (data.error) {
+            if (data.error.code === 429 || JSON.stringify(data.error).toLowerCase().includes("quota")) {
+                return "CUOTA_EXCEDIDA";
+            }
+            throw new Error(data.error.message);
         }
-    }
 
-    const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents })
-    });
-
-    const responseText = await response.text();
-    const data = JSON.parse(responseText);
-
-    // CORREGIDO: Filtro estricto para que no salte por falsos positivos de error
-    if (data.error) {
-        if (data.error.code === 429 || (data.error.message && data.error.message.toLowerCase().includes("quota"))) {
-            return "CUOTA_EXCEDIDA";
+        if (data.choices?.[0]?.message?.content) {
+            return data.choices[0].message.content.trim();
         }
-        throw new Error(data.error.message);
+        throw new Error("Respuesta inválida de la API");
+    } catch (err) {
+        console.error("Error en Fetch OpenRouter:", err);
+        if (err.message && err.message.includes("429")) return "CUOTA_EXCEDIDA";
+        throw err;
     }
-
-    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return data.candidates[0].content.parts[0].text.trim();
-    }
-    throw new Error("Formato inesperado");
 }
 
-// Lector masivo con soporte para múltiples peticiones concurrentes optimizado
+// 3. Lector de mensajes masivo y concurrente (Soporta múltiples requests en paralelo)
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const canalId = message.channel.id;
-    ultimaActividadCanal[canalId] = Date.now();
+    ultimaActividadCanal[canalId] = Date.now(); // Registra actividad para el despertador
 
     const esDM = message.channel.type === 1;
     let contenido = message.content.trim();
@@ -232,19 +234,22 @@ client.on('messageCreate', async (message) => {
 
     let adjuntoIA = null;
 
+    // Detectar imágenes normales adjuntas
     if (message.attachments.size > 0) {
         const imagen = message.attachments.first();
         if (imagen.contentType?.startsWith("image/")) {
             adjuntoIA = await urlToBase64(imagen.url);
-            contenido += " [Te he adjuntado una imagen para que la veas]";
+            contenido += " [Te he adjuntado una imagen]";
         }
     }
 
+    // Detectar Stickers de forma nativa en Discord v14
     if (message.stickers && message.stickers.size > 0) {
         const sticker = message.stickers.first();
-        contenido += ` [El usuario envió un sticker. Nombre: "${sticker.name}"]`;
+        contenido += ` [Sticker enviado por el usuario. Nombre: "${sticker.name}"]`;
     }
 
+    // Detectar enlaces web (Web Scraping Básico)
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     if (urlRegex.test(contenido)) {
         const linksEncontrados = contenido.match(urlRegex);
@@ -257,10 +262,7 @@ client.on('messageCreate', async (message) => {
 
     if (!esDM && message.member) {
         const nickname = message.member.displayName;
-        const presencia = message.member.presence;
-        const estadoConexion = presencia ? presencia.status : 'offline/invisible';
-        const customStatus = presencia?.activities.find(act => act.type === ActivityType.Custom)?.state || 'ninguno';
-        datosUsuario += ` | Apodo: ${nickname} | Estado: ${estadoConexion} | EstadoPersonalizado: "${customStatus}"`;
+        datosUsuario += ` | Apodo: ${nickname}`;
     }
     datosUsuario += `] dijo: ${contenido}`;
 
@@ -277,28 +279,18 @@ client.on('messageCreate', async (message) => {
         cooldownsCanales.set(canalId, true);
         setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
-        // Hilo paralelo asíncrono e independiente
+        // EJECUCIÓN MULTITASKING ASÍNCRONA: Hilo totalmente aislado por petición
         (async () => {
             try { await message.channel.sendTyping(); } catch (e) {}
 
-            const tiempoEscritura = Math.floor(Math.random() * (2200 - 1000 + 1)) + 1000;
+            const tiempoEscritura = Math.floor(Math.random() * (2000 - 1000 + 1)) + 1000;
             await delay(tiempoEscritura);
 
             try {
                 const respuestaTextual = await solicitarRespuestaGemini(canalId, adjuntoIA);
 
-                // Solo responderá que está saturado si Google de verdad le manda un error 429
-                if (respuestaTextual === "CUOTA_EXCEDIDA") {
-                    const respuestasControladas = [
-                        "ntp aguanta un toque q me dio calambre x tanta solicitud xd",
-                        "bájenle al spam q me congelan de la api d google",
-                        "ando medio tieso ahorita aguanten un minuto xfa xd"
-                    ];
-                    const fraseCuota = respuestasControladas[Math.floor(Math.random() * respuestasControladas.length)];
-                    if (esDM) await message.channel.send(fraseCuota);
-                    else await message.reply(fraseCuota);
-                    return;
-                }
+                // Si hay un 429 real, no responde para no trabarse ni spamear
+                if (respuestaTextual === "CUOTA_EXCEDIDA") return;
 
                 memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaTextual }] });
                 if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
@@ -315,7 +307,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// Manejador del comando /clin concurrente corregido
+// 4. Manejador del comando de barra /clin concurrente
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -327,14 +319,14 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
 
-            memoriaCanales[canalId].push({ role: "user", parts: [{ text: `[Usuario: ${interaction.user.username}] dijo: ${pregunta}` }] });
+            memoriaCanales[canalId].push({ role: "user", parts: [{ text: `[Usuario: ${interaction.user.username}] dijo vía comando: ${pregunta}` }] });
             await delay(1000);
 
             try {
                 const respuesta = await solicitarRespuestaGemini(canalId);
                 
                 if (respuesta === "CUOTA_EXCEDIDA") {
-                    await interaction.editReply({ content: "⚠️ aguanta un toque q me sature d peticiones xd intenta en un min" });
+                    await interaction.editReply({ content: "⚠️ ando saturado, dame un break d un min xfa" });
                     return;
                 }
 
@@ -343,7 +335,7 @@ client.on('interactionCreate', async (interaction) => {
 
                 await interaction.editReply({ content: respuesta });
             } catch (error) {
-                await interaction.editReply({ content: "❌ me dio un calambre cerebral, intenta de nuevo xd" });
+                await interaction.editReply({ content: "❌ me rayé, intenta otra vez xd" });
             }
         })();
     }
