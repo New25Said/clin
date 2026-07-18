@@ -6,12 +6,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin Optimizado y Despierto está vivo!');
+    res.send('🤖 ¡Clin Libre y Humano está vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
-// Sistema de Auto-Ping optimizado
 setInterval(async () => {
     try {
         await fetch(`https://clin-7bfb.onrender.com/`);
@@ -20,7 +19,7 @@ setInterval(async () => {
     }
 }, 300000); 
 
-// 2. Cliente de Discord configurado correctamente
+// 2. Cliente de Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -35,10 +34,11 @@ const client = new Client({
 
 const memoriaCanales = {};
 const LIMITE_MEMORIA = 15;
-const cooldownsCanales = new Map();
-const TIEMPO_COOLDOWN = 5000; // Un toque más humano para proteger tu cuota
 
-// 🧠 BANCO DE RESPUESTAS HUMANAS LOCALES (Por si la API de Gemini colapsa o da error de cuota)
+// 🧠 SISTEMA DE COLA HUMANA: Evita responder en fila y acumula los mensajes
+const colaMensajes = new Map(); 
+const TIEMPO_ESPERA_HUMANA = 3500; // Espera 3.5 segundos a que el usuario termine de escribir
+
 const respuestasFlojeraLocal = [
     "esperate un toque q me dio lag mental",
     "ia va, ando modo flojera xd",
@@ -46,16 +46,10 @@ const respuestasFlojeraLocal = [
     "mucho texto mano, toy durmiendo",
     "q quieres csm toy chofleao",
     "recalculando... ando medio tonto ahorita",
-    "no jodas un rato q toy jugando nes xd"
+    "no jodas un rato q toy chateando d un chromebook xd"
 ];
 
-const estadosLocalesBackup = [
-    "viendo el techo",
-    "recalculando...",
-    "modo chill",
-    "con sueño xd",
-    "ia vengo"
-];
+const estadosLocalesBackup = ["viendo el techo", "recalculando...", "modo chill", "con sueño xd", "ia vengo"];
 
 function actualizarEstadoClin(nuevoEstado) {
     try {
@@ -70,9 +64,7 @@ function actualizarEstadoClin(nuevoEstado) {
     }
 }
 
-// Bucle dinámico autónomo blindado contra errores de API key o cuota
 function iniciarBucleDeEstadosAutonomos() {
-    // Espaciado más largo (cada 15 a 30 minutos) para no matar tu cuota gratis
     const tiempoAleatorio = Math.floor(Math.random() * (1800000 - 900000 + 1)) + 900000;
     setTimeout(async () => {
         try {
@@ -96,7 +88,6 @@ function iniciarBucleDeEstadosAutonomos() {
                 throw new Error("Saturado");
             }
         } catch (e) {
-            // Si da error de cuota, Clin saca un estado humano de su memoria local sin crashearse
             const estadoBackup = estadosLocalesBackup[Math.floor(Math.random() * estadosLocalesBackup.length)];
             actualizarEstadoClin(estadoBackup);
         }
@@ -129,14 +120,13 @@ async function rasparLink(url) {
                                  .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
                                  .replace(/<[^>]+>/g, ' ')
                                  .replace(/\s+/g, ' ')
-                                 .substring(0, 500); // Reducido para ahorrar tokens
-        return `[Contenido del Link: "${titulo}" -> ${cuerpoLimpio}]`;
+                                 .substring(0, 500);
+        return `[Contenido del Link: "${titulo}" -> ${cuerpoLinter}]`;
     } catch (e) {
         return `[Link ilegible]`;
     }
 }
 
-// ARREGLADO: Usamos clientReady para v14/v15 sin warnings molestos en consola
 client.once('clientReady', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
     iniciarBucleDeEstadosAutonomos();
@@ -156,26 +146,24 @@ client.once('clientReady', async () => {
                 ]
             }
         ]);
-        console.log('¡Comando /clin registrado con éxito!');
     } catch (error) {
         console.error('Error al registrar comando:', error);
     }
 });
 
-// Sistema centralizado de peticiones blindado
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("Falta la API Key en las variables de entorno de Render");
+    if (!apiKey) throw new Error("Falta la API Key");
 
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const systemInstruction = `Eres Clin, un usuario real más del chat, ignorante, sarcástico y despreocupado.
+    const systemInstruction = `Eres Clin, un usuario real de Discord, ignorante, sarcástico, flojo y despreocupado.
 Responde OBLIGATORIAMENTE en un formato JSON plano, sin bloques de código markdown ni \`\`\`. Estructura:
 {
   "reply": "tu respuesta corta, informal, sarcástica y en minúsculas",
   "status": "un estado de discord corto (máx 4 palabras) inventado sobre lo que sientes"
 }
-Reglas: minúsculas siempre, usa abreviaciones (pq, tmb, xd, weno, k, d).`;
+Reglas: Todo en minúsculas absoluto. Usa jerga d internet y abreviaciones (pq, tmb, xd, weno, k, d, ia).`;
 
     const contents = [
         { role: "user", parts: [{ text: systemInstruction }] },
@@ -200,20 +188,12 @@ Reglas: minúsculas siempre, usa abreviaciones (pq, tmb, xd, weno, k, d).`;
     });
 
     const responseText = await response.text();
-    let data;
-    
-    try {
-        data = JSON.parse(responseText);
-    } catch(e) {
-        throw new Error("Respuesta de API inválida");
-    }
+    let data = JSON.parse(responseText);
 
     if (data.error) throw new Error(data.error.message);
 
     if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
         let textoJSON = data.candidates[0].content.parts[0].text.trim();
-        
-        // Limpieza profunda de formatos raros de markdown
         textoJSON = textoJSON.replace(/^```json/g, "").replace(/^```/g, "").replace(/```$/g, "").trim();
 
         try {
@@ -225,7 +205,7 @@ Reglas: minúsculas siempre, usa abreviaciones (pq, tmb, xd, weno, k, d).`;
     throw new Error("Estructura desconocida");
 }
 
-// 3. Lector de mensajes principal
+// 3. Lector de mensajes unificado con acumulación orgánica
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -234,15 +214,13 @@ client.on('messageCreate', async (message) => {
     let contenido = message.content.trim();
     const contenidoMinuscula = contenido.toLowerCase();
 
-    if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
-
+    // Estructurar datos adjuntos si existen
     let adjuntoIA = null;
-
     if (message.attachments.size > 0) {
         const imagen = message.attachments.first();
         if (imagen.contentType?.startsWith("image/")) {
             adjuntoIA = await urlToBase64(imagen.url);
-            contenido += " [Te he adjuntado una imagen para que la veas]";
+            contenido += " [El usuario te muestra una imagen]";
         }
     }
 
@@ -258,75 +236,95 @@ client.on('messageCreate', async (message) => {
         contenido += ` ${textoWeb}`;
     }
 
-    const username = message.author.username;
-    let datosUsuario = `[Usuario: ${username}`;
-
-    if (!esDM && message.member) {
-        const nickname = message.member.displayName;
-        const presencia = message.member.presence;
-        const estadoConexion = presencia ? presencia.status : 'offline';
-        const customStatus = presencia?.activities.find(act => act.type === ActivityType.Custom)?.state || 'ninguno';
-        datosUsuario += ` | Apodo: ${nickname} | Estado: ${estadoConexion} | Status: "${customStatus}"`;
-    }
-    datosUsuario += `] dijo: ${contenido}`;
-
-    memoriaCanales[canalId].push({ role: "user", parts: [{ text: datosUsuario }] });
-    if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
-
     const loMencionan = message.mentions.has(client.user);
     const esRespuestaAClin = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
     const diceSuNombre = contenidoMinuscula.includes("clin");
     const hablarSoloAleatorio = !esDM && Math.random() < 0.05;
 
+    // Si Clin debe reaccionar a esta interacción, lo metemos en la cola humana de espera
     if (esDM || loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
         
-        // 🤫 FILTRO HUMANO DE SPAM LOCAL: Si abusan del bot, responde al toque sin usar tokens
-        if (cooldownsCanales.has(canalId)) {
-            if (Math.random() < 0.3) {
-                try { await message.reply("deja d spamear csm, ando cargando"); } catch(e){}
-            }
-            return;
+        // Si no existe una cola activa para este canal, la creamos
+        if (!colaMensajes.has(canalId)) {
+            colaMensajes.set(canalId, {
+                mensajesAcumulados: [],
+                ultimoMensajeRef: message, 
+                adjunto: null,
+                timeoutId: null
+            });
         }
-        cooldownsCanales.set(canalId, true);
-        setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
-        // EFECTO HUMANO: "Escribiendo..." realista de inmediato
-        try { await message.channel.sendTyping(); } catch (e) {}
+        const datosCola = colaMensajes.get(canalId);
+        
+        // Guardar el texto actual en la ráfaga
+        datosCola.mensajesAcumulados.push(contenido);
+        datosCola.ultimoMensajeRef = message; // Siempre responder al último mensaje enviado
+        if (adjuntoIA) datosCola.adjunto = adjuntoIA;
 
-        try {
-            const resultado = await solicitarRespuestaGemini(canalId, adjuntoIA);
+        // Resetear el temporizador cada vez que llega un mensaje nuevo (Debounce)
+        if (datosCola.timeoutId) clearTimeout(datosCola.timeoutId);
 
-            memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
+        // Activamos el retraso simulando la lectura humana
+        datosCola.timeoutId = setTimeout(async () => {
+            // Sacamos los datos acumulados y limpiamos la cola inmediatamente para liberar el canal
+            const datosAProcesar = colaMensajes.get(canalId);
+            colaMensajes.delete(canalId); 
+
+            if (!datosAProcesar) return;
+
+            // Mostrar que Clin empezó a escribir de forma natural
+            try { await datosAProcesar.ultimoMensajeRef.channel.sendTyping(); } catch (e) {}
+
+            if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
+
+            // Unimos toda la ráfaga de mensajes en un solo bloque coherente para la IA
+            const bloqueMensajesUnidos = datosAProcesar.mensajesAcumulados.join(" | ");
+            const username = datosAProcesar.ultimoMensajeRef.author.username;
+            
+            let datosUsuario = `[Usuario: ${username}] dijo la siguiente ráfaga de mensajes: ${bloqueMensajesUnidos}`;
+
+            memoriaCanales[canalId].push({ role: "user", parts: [{ text: datosUsuario }] });
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            // Retardo humano artificial proporcional para que parezca que Clin tipea
-            const delayTipeo = Math.min(Math.max(resultado.reply.length * 50, 1500), 4000);
-            setTimeout(async () => {
-                if (esDM) {
-                    await message.channel.send(resultado.reply);
-                } else {
-                    await message.reply(resultado.reply);
-                }
-                actualizarEstadoClin(resultado.status);
-            }, delayTipeo);
+            try {
+                const resultado = await solicitarRespuestaGemini(canalId, datosAProcesar.adjunto);
 
-        } catch (error) {
-            console.error("Error capturado de forma limpia:", error.message);
-            
-            // 🛡️ SALVACIÓN HUMANA: Si la API colapsa, Clin responde usando su flojera local instantánea
-            const respuestaEmergencia = respuestasFlojeraLocal[Math.floor(Math.random() * respuestasFlojeraLocal.length)];
-            
-            memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaEmergencia }] });
-            
-            setTimeout(async () => {
-                await message.reply(respuestaEmergencia);
-                actualizarEstadoClin("con lag mental");
-            }, 1500);
-        }
+                memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
+                if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
+
+                // Simular el tiempo de tipeo según el tamaño de la respuesta final
+                const delayTipeo = Math.min(Math.max(resultado.reply.length * 45, 1200), 3500);
+                setTimeout(async () => {
+                    try {
+                        if (esDM) {
+                            await datosAProcesar.ultimoMensajeRef.channel.send(resultado.reply);
+                        } else {
+                            await datosAProcesar.ultimoMensajeRef.reply(resultado.reply);
+                        }
+                        actualizarEstadoClin(resultado.status);
+                    } catch (e) {}
+                }, delayTipeo);
+
+            } catch (error) {
+                console.error("Error capturado limpiamente de API:", error.message);
+                
+                // Si la cuota colapsa, Clin responde desde su flojera interna una sola vez
+                const respuestaEmergencia = respuestasFlojeraLocal[Math.floor(Math.random() * respuestasFlojeraLocal.length)];
+                memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaEmergencia }] });
+                
+                setTimeout(async () => {
+                    try {
+                        await datosAProcesar.ultimoMensajeRef.reply(respuestaEmergencia);
+                        actualizarEstadoClin("con lag mental");
+                    } catch(e){}
+                }, 1000);
+            }
+
+        }, TIEMPO_ESPERA_HUMANA);
     }
 });
 
-// 4. Comando de barra /clin blindado
+// 4. Comando /clin integrado sin cambios
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
