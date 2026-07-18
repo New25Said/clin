@@ -290,10 +290,9 @@ client.on('messageCreate', async (message) => {
                 // Solo responderá que está saturado si Google de verdad le manda un error 429
                 if (respuestaTextual === "CUOTA_EXCEDIDA") {
                     const respuestasControladas = [
-                        "ntp aguanta un toque q me dio calambre",
-                        "bájenle al spam q me congelan",
+                        "ntp aguanta un toque q me dio calambre x tanta solicitud xd",
+                        "bájenle al spam q me congelan de la api d google",
                         "ando medio tieso ahorita aguanten un minuto xfa xd"
-                        "CRASHEANDO..."
                     ];
                     const fraseCuota = respuestasControladas[Math.floor(Math.random() * respuestasControladas.length)];
                     if (esDM) await message.channel.send(fraseCuota);
