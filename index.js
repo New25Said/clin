@@ -1,12 +1,17 @@
 const { Client, GatewayIntentBits, Partials, ApplicationCommandOptionType, ActivityType } = require('discord.js');
 const express = require('express');
+const path = require('path'); // Requerido para servir el index.html de forma correcta
 
-// 1. Servidor web Express para mantener vivo el bot en Render
+// 1. Servidor web Express configurado para renderizar tu página web index.html
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Servir archivos estáticos (aquí es donde Express buscará tu index.html)
+app.use(express.static(path.join(__dirname)));
+
+// Cuando alguien visite la URL de Render, se cargará tu archivo index.html automáticamente
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin Optimizado y Despierto está vivo!');
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -40,7 +45,7 @@ const LIMITE_MEMORIA = 15;
 
 // Cooldown para cuidar la cuota gratis de Gemini
 const cooldownsCanales = new Map();
-const TIEMPO_COOLDOWN = 4000;
+const TIEMPO_COOLDOWN = 3000; // Bajado a 3 segundos para mayor fluidez
 
 // Sistema de cola/buffer para mitigar mensajes fragmentados (Ráfagas)
 const buffersConversacion = {};
@@ -59,7 +64,7 @@ function actualizarEstadoClin(nuevoEstado) {
     }
 }
 
-// Bucle dinámico independiente para estados autónomos (No consume cuota del chat)
+// Bucle dinámico independiente para estados autónomos (0 gasto de API en el chat)
 const estadosClinFrases = [
     "saludando gente xd",
     "viendo memes",
@@ -146,28 +151,21 @@ client.once('clientReady', async () => {
     }
 });
 
-// Sistema centralizado de peticiones a la IA (Google AI Studio usando tu variable de Render)
+// Sistema centralizado de peticiones OPTIMIZADO (Texto Plano Puro para evitar bugs)
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey || apiKey.trim() === "") {
-        return { reply: "Falta configurar la clave API en las variables de entorno de Render.", status: "error" };
+        return "Falta configurar la clave API en las variables de entorno de Render.";
     }
 
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey.trim()}`;
 
-    const systemInstruction = `Eres Clin, un usuario real en este chat de Discord.
-Debes responder OBLIGATORIAMENTE en un formato JSON plano, sin bloques de código de markdown. Estructura exacta:
-{
-  "reply": "tu respuesta ultra corta, informal, sarcástica y en minúsculas",
-  "status": "un estado de discord corto (máximo 4 palabras) inventado por ti sobre lo que piensas u opinas en este instante"
-}
-Reglas críticas: 
-- Todo en minúsculas. Usa abreviaciones d chat (pq, tmb, xd, weno). 
-- El "status" NO puede ser el mensaje del usuario, debe ser algo inventado por ti que simule un pensamiento (ej: "con sueño xd", "recalculando", "modo chill").`;
+    // Rediseño de instrucción: Eliminamos el JSON problemático
+    const systemInstruction = "Eres Clin, un usuario real e informal en este chat de Discord. Hablas de forma corta (máximo 1 o 2 líneas), todo obligatoriamente en minúsculas, usas xd, pq, tmb, weno, ntp. Sé directo, algo sarcástico, despreocupado y relajado. Responde SOLO con texto plano limpio, sin usar bloques de código de markdown.";
 
     const contents = [
         { role: "user", parts: [{ text: systemInstruction }] },
-        { role: "model", parts: [{ text: `{"reply": "ya entendi xd", "status": "fino"}` }] }
+        { role: "model", parts: [{ text: "ya entendi xd hablare normal en minusculas" }] }
     ];
 
     if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
@@ -193,24 +191,16 @@ Reglas críticas:
 
         if (data.error) {
             console.error("Error devuelto por la API de Google:", data.error.message);
-            return { reply: "me dio un calambre de lag xd háblame de nuevo", status: "recalculando..." };
+            return "ando medio sordo xd háblame de nuevo";
         }
 
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            let textoJSON = data.candidates[0].content.parts[0].text.trim();
-            if (textoJSON.startsWith("```json")) textoJSON = textoJSON.replace(/^```json/, "").replace(/```$/, "").trim();
-            else if (textoJSON.startsWith("```")) textoJSON = textoJSON.replace(/^```/, "").replace(/```$/, "").trim();
-
-            try {
-                return JSON.parse(textoJSON);
-            } catch (e) {
-                return { reply: textoJSON, status: "modo chill" };
-            }
+            return data.candidates[0].content.parts[0].text.trim();
         }
-        return { reply: "no te entendí ni pío xd", status: "recalculando..." };
+        return "no te entendí ni pío xd";
     } catch (err) {
         console.error("Error crítico en la petición de red:", err);
-        return { reply: "se me cruzaron los cables feo xd porfa repite", status: "fino" };
+        return "se me cruzaron los cables xd porfa repite";
     }
 }
 
@@ -252,10 +242,7 @@ client.on('messageCreate', async (message) => {
 
     if (!esDM && message.member) {
         const nickname = message.member.displayName;
-        const presencia = message.member.presence;
-        const estadoConexion = presencia ? presencia.status : 'offline/invisible';
-        const customStatus = presencia?.activities.find(act => act.type === ActivityType.Custom)?.state || 'ninguno';
-        datosUsuario += ` | Apodo: ${nickname} | Estado: ${estadoConexion} | EstadoPersonalizado: "${customStatus}"`;
+        datosUsuario += ` | Apodo: ${nickname}`;
     }
     datosUsuario += `] dijo: ${contenido}`;
 
@@ -270,42 +257,42 @@ client.on('messageCreate', async (message) => {
 
     if (esDM || loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
         
-        // Si el canal ya está procesando una respuesta, no lances otro Fetch paralelos
         if (cooldownsCanales.has(canalId)) return;
 
-        // Limpiar el temporizador previo si el usuario sigue enviando mensajes fragmentados
         if (buffersConversacion[canalId]) {
             clearTimeout(buffersConversacion[canalId]);
         }
 
-        // Mostrar que está escribiendo de inmediato para dar feedback humano
         try { await message.channel.sendTyping(); } catch (e) {}
 
-        // Esperar 1.5 segundos para recolectar fragmentos adicionales antes de enviar a la IA
+        // Buffer corto de 1 segundo para juntar ráfagas rápidas y responder fluido
         buffersConversacion[canalId] = setTimeout(async () => {
             cooldownsCanales.set(canalId, true);
             setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
             try {
-                // Solicitar respuesta enviando el contexto consolidado actual
-                const resultado = await solicitarRespuestaGemini(canalId, adjuntoIA);
+                // Ahora devuelve texto plano directo (Cero bugs de JSON)
+                const respuestaTextual = await solicitarRespuestaGemini(canalId, adjuntoIA);
 
-                memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
+                memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaTextual }] });
                 if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
                 if (esDM || (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre)) {
-                    await message.channel.send(resultado.reply);
+                    await message.channel.send(respuestaTextual);
                 } else {
-                    await message.reply(resultado.reply);
+                    await message.reply(respuestaTextual);
                 }
 
-                actualizarEstadoClin(resultado.status);
+                // Generar un estado divertido de fondo basado en la lista para no gastar cuota
+                const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
+                actualizarEstadoClin(fraseAleatoria);
+
             } catch (error) {
                 console.error("Error al procesar la respuesta libre en la ráfaga:", error);
             } finally {
                 delete buffersConversacion[canalId];
             }
-        }, 1500);
+        }, 1000);
     }
 });
 
@@ -326,12 +313,14 @@ client.on('interactionCreate', async (interaction) => {
         });
 
         try {
-            const resultado = await solicitarRespuestaGemini(canalId);
-            memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
+            const resultadoTextual = await solicitarRespuestaGemini(canalId);
+            memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultadoTextual }] });
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            await interaction.editReply({ content: resultado.reply });
-            actualizarEstadoClin(resultado.status);
+            await interaction.editReply({ content: resultadoTextual });
+            
+            const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
+            actualizarEstadoClin(fraseAleatoria);
         } catch (error) {
             await interaction.editReply({ content: "❌ ando medio tonto ahorita." });
         }
