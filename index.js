@@ -2,23 +2,29 @@ const { Client, GatewayIntentBits, Partials, ApplicationCommandOptionType, Activ
 const express = require('express');
 const path = require('path');
 
-// 1. Servidor web Express arreglado para leer tu index.html
+// 1. Servidor web Express para mantener vivo el bot en Render y servir tu Web
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(__dirname));
-
+// Configurar Express para servir la página web (index.html)
+app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => console.log(`Puerto activo: ${PORT} - Sirviendo index.html`));
+app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 
+// Sistema de Auto-Ping para evitar que Render congele la CPU del bot
 setInterval(async () => {
-    try { await fetch(`https://clin-7bfb.onrender.com/`); } catch (e) {}
-}, 300000);
+    try {
+        await fetch(`https://clin-7bfb.onrender.com/`);
+        console.log('⏰ Auto-ping de optimización enviado para mantener despierto a Clin.');
+    } catch (e) {
+        console.log('Error en auto-ping, ignorando...');
+    }
+}, 300000); // Cada 5 minutos
 
-// 2. Cliente de Discord
+// 2. Cliente de Discord con todos los intents y partials necesarios
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -31,23 +37,18 @@ const client = new Client({
     partials: [Partials.Channel, Partials.Message]
 });
 
+// Memoria local de los canales y DMs
 const memoriaCanales = {};
 const LIMITE_MEMORIA = 15;
 
-// SISTEMA HUMANO CORREGIDO
-const colaMensajes = new Map(); 
-const TIEMPO_ESPERA_HUMANA = 5000; // 5 segundos de espera para que termines de escribir todo
-let apiMuriendoSilencio = false; // Bandera para que no spamee errores si la API cae
+// Cooldown para cuidar la cuota gratis de Gemini y evitar saturación
+const cooldownsCanales = new Map();
+const TIEMPO_COOLDOWN = 3000; // 3 segundos
 
-const respuestasFlojeraLocal = [
-    "esperate un toque q me dio lag mental",
-    "ia va, ando modo flojera xd",
-    "se me fue el internet jajsjs esperate",
-    "mucho texto mano, toy durmiendo",
-    "q quieres csm toy chofleao",
-    "recalculando... ando medio tonto ahorita"
-];
+// Sistema de cola/buffer para mitigar mensajes fragmentados (Ráfagas)
+const buffersConversacion = {};
 
+// Función para cambiar el estado de Clin
 function actualizarEstadoClin(nuevoEstado) {
     try {
         if (!nuevoEstado) return;
@@ -56,102 +57,154 @@ function actualizarEstadoClin(nuevoEstado) {
             activities: [{ name: limpio, type: ActivityType.Custom }],
             status: 'online'
         });
-    } catch (err) {}
+    } catch (err) {
+        console.error("Error al actualizar estado:", err);
+    }
 }
 
+// Bucle dinámico independiente para estados autónomos (No consume cuota del chat)
+const estadosClinFrases = [
+    "saludando gente xd",
+    "viendo memes",
+    "con ganas d molestar",
+    "modo chill activo",
+    "viviendo la vida",
+    "recalculando existencia",
+    "con sueño xd",
+    "viendo que onda",
+    "escuchando musica xd",
+    "ignorando mensajes xd",
+    "jugando cositas"
+];
+
 function iniciarBucleDeEstadosAutonomos() {
-    const tiempoAleatorio = Math.floor(Math.random() * (1800000 - 900000 + 1)) + 900000;
-    setTimeout(async () => {
+    const tiempoAleatorio = Math.floor(Math.random() * (1200000 - 600000 + 1)) + 600000;
+    setTimeout(() => {
         try {
-            const apiKey = process.env.GEMINI_API_KEY;
-            if (!apiKey) return;
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-            const response = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ role: "user", parts: [{ text: "Inventa un estado personalizado corto para tu perfil de discord (máximo 4 palabras). Estilo joven de internet, minúsculas, gracioso o existencial. Devuelve SOLO el texto plano sin comillas." }] }]
-                })
-            });
-            const data = await response.json();
-            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                actualizarEstadoClin(data.candidates[0].content.parts[0].text.trim());
-            }
+            const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
+            actualizarEstadoClin(fraseAleatoria);
         } catch (e) {
-            actualizarEstadoClin("modo chill");
+            console.log("No se pudo actualizar el estado autónomo.");
         }
         iniciarBucleDeEstadosAutonomos();
     }, tiempoAleatorio);
 }
 
+// Función para descargar imágenes y convertirlas a formato Base64 para Gemini
 async function urlToBase64(url) {
     try {
         const res = await fetch(url);
         const arrayBuffer = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
         return {
             inlineData: {
-                data: Buffer.from(arrayBuffer).toString("base64"),
+                data: buffer.toString("base64"),
                 mimeType: res.headers.get("content-type") || "image/png"
             }
         };
-    } catch (e) { return null; }
+    } catch (e) {
+        console.error("Error al convertir imagen a Base64:", e);
+        return null;
+    }
+}
+
+// Función de raspado web (Web scraping ultraligero para links)
+async function rasparLink(url) {
+    try {
+        const res = await fetch(url);
+        const html = await res.text();
+        const titulo = html.match(/<title>([^<]+)<\/title>/)?.[1] || "Web";
+        const cuerpoLimpio = html.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
+                                 .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
+                                 .replace(/<[^>]+>/g, ' ')
+                                 .replace(/\s+/g, ' ')
+                                 .substring(0, 1000);
+        return `[Contenido del Link: "${titulo}" -> ${cuerpoLimpio}]`;
+    } catch (e) {
+        return `[No se pudo leer el contenido del link: ${url}]`;
+    }
 }
 
 client.once('clientReady', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
     iniciarBucleDeEstadosAutonomos();
+
+    // Registrar comando /clin
     try {
-        await client.application.commands.set([{
-            name: 'clin',
-            description: 'Pregúntale algo directamente a Clin',
-            options: [{ name: 'pregunta', description: 'Tu pregunta', type: ApplicationCommandOptionType.String, required: true }]
-        }]);
-    } catch (e) {}
+        await client.application.commands.set([
+            {
+                name: 'clin',
+                description: 'Pregúntale algo directamente a Clin',
+                options: [
+                    {
+                        name: 'pregunta',
+                        description: 'Tu pregunta o mensaje para Clin',
+                        type: ApplicationCommandOptionType.String,
+                        required: true
+                    }
+                ]
+            }
+        ]);
+        console.log('¡Comando /clin registrado con éxito!');
+    } catch (error) {
+        console.error('Error al registrar comando:', error);
+    }
 });
 
+// 3. Sistema centralizado de peticiones a la IA (Google AI Studio - Texto Plano Puro)
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("Falta la API Key");
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey || apiKey.trim() === "") {
+        return "Falta configurar la clave API en las variables de entorno de Render.";
+    }
 
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-    const systemInstruction = `Eres Clin, un usuario real de Discord, ignorante, sarcástico, flojo y despreocupado.
-Responde OBLIGATORIAMENTE en un formato JSON plano. Estructura:
-{
-  "reply": "tu respuesta corta, informal, sarcástica y en minúsculas",
-  "status": "un estado de discord inventado sobre lo que sientes"
-}
-Reglas: Todo en minúsculas absoluto. Usa jerga d internet y abreviaciones (pq, tmb, xd, weno, k, d, ia).`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey.trim()}`;
+
+    // Instrucción libre de JSON para evitar cuelgues
+    const systemInstruction = "Eres Clin, un usuario real e informal en este chat de Discord. Hablas de forma corta (máximo 1 o 2 líneas), todo obligatoriamente en minúsculas, usas xd, pq, tmb, weno, ntp. Sé directo, sarcástico, despreocupado y relajado. Responde SOLO con texto plano limpio, sin usar bloques de código de markdown.";
 
     const contents = [
         { role: "user", parts: [{ text: systemInstruction }] },
-        { role: "model", parts: [{ text: `{"reply": "ya entendi xd", "status": "fino"}` }] }
+        { role: "model", parts: [{ text: "ya entendi xd hablare normal en minusculas" }] }
     ];
 
-    if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) contents.push(...memoriaCanales[canalId]);
+    if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
+        contents.push(...memoriaCanales[canalId]);
+    }
+
     if (adjuntoData && contents.length > 0) {
         const ultimaInteraccion = contents[contents.length - 1];
-        if (ultimaInteraccion.role === "user") ultimaInteraccion.parts.push(adjuntoData);
+        if (ultimaInteraccion.role === "user") {
+            ultimaInteraccion.parts.push(adjuntoData);
+        }
     }
 
-    const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents })
-    });
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents })
+        });
 
-    const responseText = await response.text();
-    let data = JSON.parse(responseText);
+        const responseText = await response.text();
+        let data = JSON.parse(responseText);
 
-    if (data.error) throw new Error(data.error.message);
+        if (data.error) {
+            console.error("Error devuelto por la API de Google:", data.error.message);
+            return "ando medio sordo xd háblame de nuevo";
+        }
 
-    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        let textoJSON = data.candidates[0].content.parts[0].text.trim();
-        textoJSON = textoJSON.replace(/^```json/g, "").replace(/^```/g, "").replace(/```$/g, "").trim();
-        return JSON.parse(textoJSON);
+        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            return data.candidates[0].content.parts[0].text.trim();
+        }
+        return "no te entendí ni pío xd";
+    } catch (err) {
+        console.error("Error crítico en la petición de red:", err);
+        return "se me cruzaron los cables xd porfa repite";
     }
-    throw new Error("Estructura desconocida");
 }
 
+// 4. Lector de mensajes unificado con buffer inteligente integrado (Soporte Anti-Ráfagas)
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -160,11 +213,45 @@ client.on('messageCreate', async (message) => {
     let contenido = message.content.trim();
     const contenidoMinuscula = contenido.toLowerCase();
 
+    if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
+
     let adjuntoIA = null;
+
     if (message.attachments.size > 0) {
         const imagen = message.attachments.first();
-        if (imagen.contentType?.startsWith("image/")) adjuntoIA = await urlToBase64(imagen.url);
+        if (imagen.contentType?.startsWith("image/")) {
+            adjuntoIA = await urlToBase64(imagen.url);
+            contenido += " [Te he adjuntado una imagen para que la veas]";
+        }
     }
+
+    if (message.stickers && message.stickers.size > 0) {
+        const sticker = message.stickers.first();
+        contenido += ` [El usuario envió un sticker. Nombre del sticker: "${sticker.name}". Reacciona a este sticker de forma divertida]`;
+    }
+
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    if (urlRegex.test(contenido)) {
+        const linksEncontrados = contenido.match(urlRegex);
+        const textoWeb = await rasparLink(linksEncontrados[0]);
+        contenido += ` ${textoWeb}`;
+    }
+
+    const username = message.author.username;
+    let datosUsuario = `[Usuario: ${username}`;
+
+    if (!esDM && message.member) {
+        const nickname = message.member.displayName;
+        const presencia = message.member.presence;
+        const estadoConexion = presencia ? presencia.status : 'offline/invisible';
+        const customStatus = presencia?.activities.find(act => act.type === ActivityType.Custom)?.state || 'ninguno';
+        datosUsuario += ` | Apodo: ${nickname} | Estado: ${estadoConexion} | EstadoPersonalizado: "${customStatus}"`;
+    }
+    datosUsuario += `] dijo: ${contenido}`;
+
+    // Guardar en el historial inmediato
+    memoriaCanales[canalId].push({ role: "user", parts: [{ text: datosUsuario }] });
+    if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
     const loMencionan = message.mentions.has(client.user);
     const esRespuestaAClin = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
@@ -173,69 +260,73 @@ client.on('messageCreate', async (message) => {
 
     if (esDM || loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
         
-        // Agrupación perfecta por Canal Y Usuario
-        const claveCola = `${canalId}-${message.author.id}`;
+        if (cooldownsCanales.has(canalId)) return;
 
-        if (!colaMensajes.has(claveCola)) {
-            colaMensajes.set(claveCola, { textos: [], ultimoMsg: message, timer: null, adjunto: adjuntoIA });
+        // Limpiar temporizador previo si hay ráfaga de mensajes
+        if (buffersConversacion[canalId]) {
+            clearTimeout(buffersConversacion[canalId]);
         }
 
-        const cola = colaMensajes.get(claveCola);
-        cola.textos.push(contenido);
-        cola.ultimoMsg = message;
-        if (adjuntoIA) cola.adjunto = adjuntoIA;
+        try { await message.channel.sendTyping(); } catch (e) {}
 
-        // Reinicia el contador de 5 segundos cada vez que el usuario manda un mensaje nuevo
-        if (cola.timer) clearTimeout(cola.timer);
-
-        cola.timer = setTimeout(async () => {
-            const datosAProcesar = colaMensajes.get(claveCola);
-            colaMensajes.delete(claveCola);
-
-            if (!datosAProcesar) return;
-
-            try { await datosAProcesar.ultimoMsg.channel.sendTyping(); } catch (e) {}
-
-            if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
-            
-            // Une todos los mensajes en un solo bloque
-            const bloqueMensajesUnidos = datosAProcesar.textos.join(" | ");
-            let datosUsuario = `[Usuario: ${datosAProcesar.ultimoMsg.author.username}] dijo: ${bloqueMensajesUnidos}`;
-
-            memoriaCanales[canalId].push({ role: "user", parts: [{ text: datosUsuario }] });
-            if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
+        // Buffer de 1.5 segundos (1500ms) para consolidar mensajes rápidos antes de llamar a la API
+        buffersConversacion[canalId] = setTimeout(async () => {
+            cooldownsCanales.set(canalId, true);
+            setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
             try {
-                const resultado = await solicitarRespuestaGemini(canalId, datosAProcesar.adjunto);
-                memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
-                
-                const delayTipeo = Math.min(Math.max(resultado.reply.length * 45, 1200), 3500);
-                setTimeout(async () => {
-                    try {
-                        if (esDM) await datosAProcesar.ultimoMsg.channel.send(resultado.reply);
-                        else await datosAProcesar.ultimoMsg.reply(resultado.reply);
-                        actualizarEstadoClin(resultado.status);
-                    } catch (e) {}
-                }, delayTipeo);
+                const respuestaTextual = await solicitarRespuestaGemini(canalId, adjuntoIA);
+
+                memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaTextual }] });
+                if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
+
+                if (esDM || (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre)) {
+                    await message.channel.send(respuestaTextual);
+                } else {
+                    await message.reply(respuestaTextual);
+                }
+
+                // Generar estado divertido aleatorio sin gastar cuota extra
+                const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
+                actualizarEstadoClin(fraseAleatoria);
 
             } catch (error) {
-                // Si la API falla (Ej. límite de cuota), Clin NO spamea. Tira 1 excusa y se calla por 1 minuto.
-                if (!apiMuriendoSilencio) {
-                    apiMuriendoSilencio = true;
-                    setTimeout(() => apiMuriendoSilencio = false, 60000); // 1 minuto de silencio total
-
-                    const excusa = respuestasFlojeraLocal[Math.floor(Math.random() * respuestasFlojeraLocal.length)];
-                    memoriaCanales[canalId].push({ role: "model", parts: [{ text: excusa }] });
-                    
-                    setTimeout(async () => {
-                        try {
-                            await datosAProcesar.ultimoMsg.reply(excusa);
-                            actualizarEstadoClin("con lag mental");
-                        } catch(e){}
-                    }, 1000);
-                }
+                console.error("Error al procesar la respuesta en la ráfaga:", error);
+            } finally {
+                delete buffersConversacion[canalId]; // Limpiar buffer al terminar
             }
-        }, TIEMPO_ESPERA_HUMANA);
+        }, 1500); 
+    }
+});
+
+// 5. Manejador del comando de barra /clin
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'clin') {
+        const pregunta = interaction.options.getString('pregunta');
+        const canalId = interaction.channel.id;
+
+        await interaction.deferReply();
+        if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
+
+        memoriaCanales[canalId].push({
+            role: "user",
+            parts: [{ text: `[Usuario: ${interaction.user.username}] dijo vía comando: ${pregunta}` }]
+        });
+
+        try {
+            const resultadoTextual = await solicitarRespuestaGemini(canalId);
+            memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultadoTextual }] });
+            if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
+
+            await interaction.editReply({ content: resultadoTextual });
+            
+            const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
+            actualizarEstadoClin(fraseAleatoria);
+        } catch (error) {
+            await interaction.editReply({ content: "❌ ando medio tonto ahorita." });
+        }
     }
 });
 
