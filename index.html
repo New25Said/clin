@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clin - Discord Bot Hub</title>
+    <style>
+        :root {
+            --bg-color: #0b0c10;
+            --container-bg: #1f2833;
+            --accent-purple: #a370f7;
+            --accent-blue: #4f46e5;
+            --text-main: #c5c6c7;
+            --text-bright: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 750px;
+            background: var(--container-bg);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            margin: 20px 0;
+        }
+
+        .header {
+            text-align: center;
+            position: relative;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Avatar dinámico desde el CDN de Discord */
+        .avatar-container {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+            padding: 4px;
+            box-shadow: 0 0 20px rgba(163, 112, 247, 0.4);
+        }
+
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--bg-color);
+        }
+
+        h1 {
+            color: var(--text-bright);
+            margin: 5px 0;
+            font-size: 2rem;
+            letter-spacing: 1px;
+        }
+
+        .tagline {
+            font-style: italic;
+            color: var(--accent-purple);
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+
+        .section {
+            margin: 25px 0;
+        }
+
+        h2 {
+            color: var(--text-bright);
+            font-size: 1.3rem;
+            border-left: 4px solid var(--accent-blue);
+            padding-left: 10px;
+            margin-bottom: 15px;
+        }
+
+        p {
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        /* Historial de versiones e implementaciones */
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .version-card {
+            background: rgba(11, 12, 16, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .version-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .version-title {
+            color: var(--accent-purple);
+            font-weight: bold;
+            font-size: 1.05rem;
+        }
+
+        .version-date {
+            font-size: 0.8rem;
+            background: var(--accent-blue);
+            color: var(--text-bright);
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        .version-card ul {
+            margin: 5px 0 0 0;
+            padding-left: 20px;
+            font-size: 0.9rem;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.8rem;
+            color: rgba(197, 198, 199, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <div class="avatar-container">
+                <!-- NOTA: Reemplaza TU_CLIENT_ID por la ID real de Clin en Discord Developer Portal -->
+                <img src="https://cdn.discordapp.com/avatars/TU_CLIENT_ID/avatar.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'" alt="Clin Avatar">
+            </div>
+            <h1>Clin</h1>
+            <div class="tagline">un usuario real más en el chat.</div>
+        </div>
+
+        <div class="section">
+            <h2>¿Quién es Clin?</h2>
+            <p>Clin no es el típico bot estructurado que responde comandos aburridos. Diseñado con una personalidad informal, minúscula y un toque de sarcasmo, se comporta como un amigo real de internet. Es capaz de integrarse de forma nativa tanto en canales grupales como en DMs privados, interpretando el contexto, leyendo imágenes, enlaces y reaccionando a stickers.</p>
+        </div>
+
+        <div class="section">
+            <h2>Historial de Implementaciones</h2>
+            <div class="timeline">
+                
+                <!-- Versión Actual -->
+                <div class="version-card">
+                    <div class="version-header">
+                        <span class="version-title">v3.0.0 - Concurrencia y Autonomía</span>
+                        <span class="version-date">Julio 2026</span>
+                    </div>
+                    <ul>
+                        <li>Soporte multitarea asíncrono para manejar solicitudes simultáneas.</li>
+                        <li>Bucle independiente de estados personalizados libre del flujo del chat.</li>
+                        <li>Despertador autónomo de canales inactivos.</li>
+                        <li>Migración limpia a procesamiento de texto plano con OpenRouter.</li>
+                    </ul>
+                </div>
+
+                <!-- Versiones Pasadas -->
+                <div class="version-card">
+                    <div class="version-header">
+                        <span class="version-title">v2.0.0 - Multimodal & Links</span>
+                        <span class="version-date">Principios 2026</span>
+                    </div>
+                    <ul>
+                        <li>Integración inicial con OpenRouter y Gemini API.</li>
+                        <li>Capacidad de procesar imágenes y enlaces web mediante web scraping básico.</li>
+                        <li>Sistema de memoria caché local para los últimos 15 mensajes por canal.</li>
+                    </ul>
+                </div>
+
+                <div class="version-card">
+                    <div class="version-header">
+                        <span class="version-title">v1.0.0 - Base Core</span>
+                        <span class="version-date">Fines 2025</span>
+                    </div>
+                    <ul>
+                        <li>Creación del núcleo del bot con Discord.js v14.</li>
+                        <li>Servidor local en Express integrado para despliegues en Render.</li>
+                        <li>Respuestas básicas e instrucciones de personalidad iniciales.</li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+        <footer>
+            Hecho con fines de desarrollo y optimización de agentes conversacionales.
+        </footer>
+    </div>
+
+</body>
+</html>
