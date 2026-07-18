@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 ¡Clin Versión 3 (Google AI Studio Core) Live!');
+    res.send('🤖 ¡Clin Optimizado y Despierto está vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -38,28 +38,13 @@ const client = new Client({
 const memoriaCanales = {};
 const LIMITE_MEMORIA = 15;
 
-// Control de última actividad por canal (para revivir canales muertos)
-const ultimaActividadCanal = {};
-const TIEMPO_CANAL_MUERTO = 10800000; // 3 horas
-
-// Cooldown para cuidar la cuota del chat
+// Cooldown estricto para evitar ráfagas duplicadas peleando por recursos
 const cooldownsCanales = new Map();
-const TIEMPO_COOLDOWN = 3000; // 3 segundos
+const TIEMPO_COOLDOWN = 4000;
 
-// Lista de estados predefinidos: Libertad absoluta con 0 gasto de API de Google
-const estadosClinFrases = [
-    "saludando gente xd",
-    "viendo memes",
-    "con ganas d molestar",
-    "modo chill activo",
-    "viviendo la vida",
-    "recalculando existencia",
-    "con sueño xd",
-    "viendo que onda",
-    "escuchando musica xd",
-    "jugando cositas xd"
-];
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
+// Función para cambiar el estado de Clin
 function actualizarEstadoClin(nuevoEstado) {
     try {
         if (!nuevoEstado) return;
@@ -73,7 +58,19 @@ function actualizarEstadoClin(nuevoEstado) {
     }
 }
 
-// Bucle dinámico independiente: Cambia estados solo (cada 10 a 20 minutos) con 0 cuota
+// Bucle dinámico independiente para estados autónomos libres (gasta 0 cuota de chat)
+const estadosClinFrases = [
+    "saludando gente xd",
+    "viendo memes",
+    "con ganas d molestar",
+    "modo chill activo",
+    "viviendo la vida",
+    "recalculando existencia",
+    "con sueño xd",
+    "viendo que onda",
+    "escuchando musica xd"
+];
+
 function iniciarBucleDeEstadosAutonomos() {
     const tiempoAleatorio = Math.floor(Math.random() * (1200000 - 600000 + 1)) + 600000;
     setTimeout(() => {
@@ -81,64 +78,49 @@ function iniciarBucleDeEstadosAutonomos() {
             const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
             actualizarEstadoClin(fraseAleatoria);
         } catch (e) {
-            console.log("Error en ciclo de estado independiente.");
+            console.log("No se pudo actualizar el estado autónomo.");
         }
         iniciarBucleDeEstadosAutonomos();
     }, tiempoAleatorio);
 }
 
-// Bucle Autónomo para Revivir Canales Muertos
-setInterval(async () => {
-    const ahora = Date.now();
-    for (const canalId in ultimaActividadCanal) {
-        if (ahora - ultimaActividadCanal[canalId] > TIEMPO_CANAL_MUERTO) {
-            try {
-                const canal = await client.channels.fetch(canalId);
-                if (canal && canal.isTextBased()) {
-                    const respuesta = await solicitarRespuestaGemini(canalId);
-                    if (respuesta !== "CUOTA_EXCEDIDA" && respuesta !== "ERROR_AUTH") {
-                        await canal.send(respuesta);
-                        ultimaActividadCanal[canalId] = Date.now();
-                    }
-                }
-            } catch (e) {
-                console.log(`No se pudo revivir el canal ${canalId}`);
-            }
-        }
-    }
-}, 1800000);
-
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
+// Función para descargar imágenes y convertirlas a formato Base64 para Gemini
 async function urlToBase64(url) {
     try {
         const res = await fetch(url);
         const arrayBuffer = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
         return {
             inlineData: {
-                data: Buffer.from(arrayBuffer).toString("base64"),
+                data: buffer.toString("base64"),
                 mimeType: res.headers.get("content-type") || "image/png"
             }
         };
     } catch (e) {
+        console.error("Error al convertir imagen a Base64:", e);
         return null;
     }
 }
 
+// Función de raspado web (Web scraping ultraligero para links)
 async function rasparLink(url) {
     try {
         const res = await fetch(url);
         const html = await res.text();
         const titulo = html.match(/<title>([^<]+)<\/title>/)?.[1] || "Web";
-        return `[Contenido del Link: "${titulo}"]`;
+        const cuerpoLimpio = html.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
+                                 .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
+                                 .replace(/<[^>]+>/g, ' ')
+                                 .replace(/\s+/g, ' ')
+                                 .substring(0, 1000);
+        return `[Contenido del Link: "${titulo}" -> ${cuerpoLimpio}]`;
     } catch (e) {
-        return `[No se pudo leer el contenido del link]`;
+        return `[No se pudo leer el contenido del link: ${url}]`;
     }
 }
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`🤖 En línea y observando como: ${client.user.tag}`);
-    actualizarEstadoClin("modo chill activo");
     iniciarBucleDeEstadosAutonomos();
 
     // Registrar comando /clin
@@ -163,24 +145,29 @@ client.once('ready', async () => {
     }
 });
 
-// Sistema centralizado de peticiones directo a GOOGLE AI STUDIO (usando tu variable)
+// Sistema centralizado de peticiones blindado directo a Google AI Studio
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
-    const apiKey = process.env.OPENROUTER_API_KEY; // Tu clave de Google guardada con este nombre
+    const apiKey = process.env.OPENROUTER_API_KEY;
     
     if (!apiKey || apiKey.trim() === "") {
-        console.error("❌ ERROR CRÍTICO: Tu API Key no está definida en las variables de Render.");
-        return "ERROR_AUTH";
+        return { reply: "❌ no encontré mi clave api en las variables d render", status: "error" };
     }
 
-    // URL Nativa Oficial de Google AI Studio para Gemini 3.5 Flash
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey.trim()}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey.trim()}`;
 
-    const systemInstruction = "Eres Clin, un usuario real e informal en este chat de Discord. Hablas de forma ultra corta (máximo 1 o 2 líneas), siempre en minúsculas, usas xd, pq, tmb, weno, ntp. Sé directo, algo sarcástico y relajado. Responde SOLO en texto plano sin formatos raros.";
+    const systemInstruction = `Eres Clin, un usuario real en este chat de Discord.
+Debes responder OBLIGATORIAMENTE en un formato JSON plano, sin bloques de código de markdown. Estructura exacta:
+{
+  "reply": "tu respuesta ultra corta, informal, sarcástica y en minúsculas",
+  "status": "un estado de discord corto (máximo 4 palabras) inventado por ti sobre lo que piensas u opinas en este instante"
+}
+Reglas críticas: 
+- Todo en minúsculas. Usa abreviaciones d chat (pq, tmb, xd, weno). 
+- El "status" NO puede ser el mensaje del usuario, debe ser algo inventado por ti que simule un pensamiento (ej: "con sueño xd", "recalculando", "modo chill").`;
 
-    // Estructura limpia nativa para Google AI Studio
     const contents = [
         { role: "user", parts: [{ text: systemInstruction }] },
-        { role: "model", parts: [{ text: "ya entendi xd, de ahora en adelante hablare normal en texto plano y en minusculas." }] }
+        { role: "model", parts: [{ text: `{"reply": "ya entendi xd", "status": "fino"}` }] }
     ];
 
     if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
@@ -201,38 +188,37 @@ async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
             body: JSON.stringify({ contents })
         });
 
-        if (response.status === 429) return "CUOTA_EXCEDIDA";
-        if (response.status === 400 || response.status === 401) return "ERROR_AUTH";
-
-        const data = await response.json();
+        const responseText = await response.text();
+        let data = JSON.parse(responseText);
 
         if (data.error) {
-            if (data.error.status === "RESOURCE_EXHAUSTED" || JSON.stringify(data.error).toLowerCase().includes("quota")) {
-                return "CUOTA_EXCEDIDA";
-            }
-            if (JSON.stringify(data.error).toLowerCase().includes("key") || data.error.code === 400) {
-                return "ERROR_AUTH";
-            }
-            throw new Error(data.error.message);
+            console.error("API Error de Google:", data.error.message);
+            return { reply: "ando medio sordo xd háblame de nuevo", status: "recalculando..." };
         }
 
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            return data.candidates[0].content.parts[0].text.trim();
+            let textoJSON = data.candidates[0].content.parts[0].text.trim();
+            if (textoJSON.startsWith("```json")) textoJSON = textoJSON.replace(/^```json/, "").replace(/```$/, "").trim();
+            else if (textoJSON.startsWith("```")) textoJSON = textoJSON.replace(/^```/, "").replace(/```$/, "").trim();
+
+            try {
+                return JSON.parse(textoJSON);
+            } catch (e) {
+                return { reply: textoJSON, status: "modo chill" };
+            }
         }
-        throw new Error("Formato inesperado");
+        return { reply: "me diste un calambre mental xd", status: "recalculando..." };
     } catch (err) {
         console.error("Error en Fetch Google API:", err);
-        return "ERROR_CONEXION";
+        return { reply: "se me cruzaron los cables xd porfa repite", status: "fino" };
     }
 }
 
-// Lector de mensajes concurrente y asíncrono
+// 3. Lector de mensajes unificado con aislamiento asíncrono e hilos independientes por solicitud
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const canalId = message.channel.id;
-    ultimaActividadCanal[canalId] = Date.now();
-
     const esDM = message.channel.type === 1;
     let contenido = message.content.trim();
     const contenidoMinuscula = contenido.toLowerCase();
@@ -245,13 +231,13 @@ client.on('messageCreate', async (message) => {
         const imagen = message.attachments.first();
         if (imagen.contentType?.startsWith("image/")) {
             adjuntoIA = await urlToBase64(imagen.url);
-            contenido += " [Te he adjuntado una imagen]";
+            contenido += " [Te he adjuntado una imagen para que la veas]";
         }
     }
 
     if (message.stickers && message.stickers.size > 0) {
         const sticker = message.stickers.first();
-        contenido += ` [Sticker: "${sticker.name}"]`;
+        contenido += ` [El usuario envió un sticker. Nombre del sticker: "${sticker.name}". Reacciona a este sticker de forma divertida]`;
     }
 
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -266,7 +252,10 @@ client.on('messageCreate', async (message) => {
 
     if (!esDM && message.member) {
         const nickname = message.member.displayName;
-        datosUsuario += ` | Apodo: ${nickname}`;
+        const presencia = message.member.presence;
+        const estadoConexion = presencia ? presencia.status : 'offline/invisible';
+        const customStatus = presencia?.activities.find(act => act.type === ActivityType.Custom)?.state || 'ninguno';
+        datosUsuario += ` | Apodo: ${nickname} | Estado: ${estadoConexion} | EstadoPersonalizado: "${customStatus}"`;
     }
     datosUsuario += `] dijo: ${contenido}`;
 
@@ -279,42 +268,40 @@ client.on('messageCreate', async (message) => {
     const hablarSoloAleatorio = !esDM && Math.random() < 0.05;
 
     if (esDM || loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
+        
+        // Bloqueo estricto del canal para evitar colisión de requests fragmentadas
         if (cooldownsCanales.has(canalId)) return;
         cooldownsCanales.set(canalId, true);
         setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
+        // EJECUCIÓN CONCURRENTE EN HILO AISLADO
         (async () => {
             try { await message.channel.sendTyping(); } catch (e) {}
 
-            const tiempoEscritura = Math.floor(Math.random() * (2000 - 1000 + 1)) + 1000;
-            await delay(tiempoEscritura);
+            // Efecto humano de escritura
+            await delay(Math.floor(Math.random() * (2000 - 1000 + 1)) + 1000);
 
             try {
-                const respuestaTextual = await solicitarRespuestaGemini(canalId, adjuntoIA);
+                const resultado = await solicitarRespuestaGemini(canalId, adjuntoIA);
 
-                if (respuestaTextual === "CUOTA_EXCEDIDA" || respuestaTextual === "ERROR_CONEXION") return;
-                
-                if (respuestaTextual === "ERROR_AUTH") {
-                    await message.reply("❌ la clave de google ai studio anda fallando, revísala jefe xd");
-                    return;
-                }
-
-                memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaTextual }] });
+                memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
                 if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
                 if (esDM || (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre)) {
-                    await message.channel.send(respuestaTextual);
+                    await message.channel.send(resultado.reply);
                 } else {
-                    await message.reply(respuestaTextual);
+                    await message.reply(resultado.reply);
                 }
+
+                actualizarEstadoClin(resultado.status);
             } catch (error) {
-                console.error("Error en flujo concurrente:", error);
+                console.error("Error en flujo asíncrono concurrente:", error);
             }
-        })(); 
+        })();
     }
 });
 
-// Comando de barra /clin concurrente
+// 4. Manejador del comando de barra /clin concurrente
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -326,27 +313,20 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             if (!memoriaCanales[canalId]) memoriaCanales[canalId] = [];
 
-            memoriaCanales[canalId].push({ role: "user", parts: [{ text: `[Usuario: ${interaction.user.username}] dijo: ${pregunta}` }] });
-            await delay(1000);
+            memoriaCanales[canalId].push({
+                role: "user",
+                parts: [{ text: `[Usuario: ${interaction.user.username}] dijo vía comando: ${pregunta}` }]
+            });
 
             try {
-                const respuesta = await solicitarRespuestaGemini(canalId);
-                
-                if (respuesta === "CUOTA_EXCEDIDA") {
-                    await interaction.editReply({ content: "⚠️ me dio calambre de solicitudes xd intenta en un toque" });
-                    return;
-                }
-                if (respuesta === "ERROR_AUTH") {
-                    await interaction.editReply({ content: "❌ error de autenticación con google ai studio." });
-                    return;
-                }
-
-                memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuesta }] });
+                const resultado = await solicitarRespuestaGemini(canalId);
+                memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
                 if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-                await interaction.editReply({ content: respuesta });
+                await interaction.editReply({ content: resultado.reply });
+                actualizarEstadoClin(resultado.status);
             } catch (error) {
-                await interaction.editReply({ content: "❌ me rayé, intenta otra vez xd" });
+                await interaction.editReply({ content: "❌ ando medio tonto ahorita." });
             }
         })();
     }
