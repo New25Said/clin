@@ -1,15 +1,12 @@
 const { Client, GatewayIntentBits, Partials, ApplicationCommandOptionType, ActivityType } = require('discord.js');
 const express = require('express');
-const path = require('path');
 
-// 1. Servidor web Express para mantener vivo el bot en Render y servir tu Web
+// 1. Servidor web Express para mantener vivo el bot en Render
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configurar Express para servir la página web (index.html)
-app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.send('ðŸ¤– Â¡Clin Optimizado y Despierto estÃ¡ vivo!');
 });
 
 app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
@@ -17,12 +14,13 @@ app.listen(PORT, () => console.log(`Puerto activo: ${PORT}`));
 // Sistema de Auto-Ping para evitar que Render congele la CPU del bot
 setInterval(async () => {
     try {
+        // Se hace un ping automÃ¡tico a su propia URL de Render para mantenerse activo
         await fetch(`https://clin-7bfb.onrender.com/`);
-        console.log('⏰ Auto-ping de optimización enviado para mantener despierto a Clin.');
+        console.log('â° Auto-ping de optimizaciÃ³n enviado para mantener despierto a Clin.');
     } catch (e) {
         console.log('Error en auto-ping, ignorando...');
     }
-}, 300000); // Cada 5 minutos
+}, 300000); // Cada 5 minutos (300,000 ms)
 
 // 2. Cliente de Discord con todos los intents y partials necesarios
 const client = new Client({
@@ -37,21 +35,19 @@ const client = new Client({
     partials: [Partials.Channel, Partials.Message]
 });
 
-// Memoria local de los canales y DMs
+// Memoria local de los canales y DMs (Ãºltimos 15 mensajes)
 const memoriaCanales = {};
 const LIMITE_MEMORIA = 15;
 
-// Cooldown para cuidar la cuota gratis de Gemini y evitar saturación
+// Cooldown para cuidar la cuota gratis de Gemini
 const cooldownsCanales = new Map();
-const TIEMPO_COOLDOWN = 3000; // 3 segundos
+const TIEMPO_COOLDOWN = 4000;
 
-// Sistema de cola/buffer para mitigar mensajes fragmentados (Ráfagas)
-const buffersConversacion = {};
-
-// Función para cambiar el estado de Clin
+// FunciÃ³n para cambiar el estado de Clin
 function actualizarEstadoClin(nuevoEstado) {
     try {
         if (!nuevoEstado) return;
+        // Limpieza extra por si la IA devuelve comillas por error
         const limpio = nuevoEstado.replace(/["']/g, "").toLowerCase().trim();
         client.user.setPresence({
             activities: [{ name: limpio, type: ActivityType.Custom }],
@@ -62,35 +58,35 @@ function actualizarEstadoClin(nuevoEstado) {
     }
 }
 
-// Bucle dinámico independiente para estados autónomos (No consume cuota del chat)
-const estadosClinFrases = [
-    "saludando gente xd",
-    "viendo memes",
-    "con ganas d molestar",
-    "modo chill activo",
-    "viviendo la vida",
-    "recalculando existencia",
-    "con sueño xd",
-    "viendo que onda",
-    "escuchando musica xd",
-    "ignorando mensajes xd",
-    "jugando cositas"
-];
-
+// Bucle dinÃ¡mico para que Clin cambie su estado SOLO y de la nada (cada 10 a 20 minutos)
 function iniciarBucleDeEstadosAutonomos() {
     const tiempoAleatorio = Math.floor(Math.random() * (1200000 - 600000 + 1)) + 600000;
-    setTimeout(() => {
+    setTimeout(async () => {
         try {
-            const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
-            actualizarEstadoClin(fraseAleatoria);
+            const apiKey = process.env.OPENROUTER_API_KEY;
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ role: "user", parts: [{ text: "Inventa un estado personalizado corto para tu perfil de discord (mÃ¡ximo 4 palabras). Estilo joven de internet, minÃºsculas, gracioso o existencial. NO uses respuestas anteriores de usuarios. Devuelve SOLO el texto plano sin comillas." }] }]
+                })
+            });
+            const responseText = await response.text();
+            const data = JSON.parse(responseText);
+            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                const nuevoEstadoRandom = data.candidates[0].content.parts[0].text.trim();
+                actualizarEstadoClin(nuevoEstadoRandom);
+            }
         } catch (e) {
-            console.log("No se pudo actualizar el estado autónomo.");
+            console.log("No se pudo actualizar el estado autÃ³nomo en este ciclo.");
         }
         iniciarBucleDeEstadosAutonomos();
     }, tiempoAleatorio);
 }
 
-// Función para descargar imágenes y convertirlas a formato Base64 para Gemini
+// FunciÃ³n para descargar imÃ¡genes y convertirlas a formato Base64 para Gemini
 async function urlToBase64(url) {
     try {
         const res = await fetch(url);
@@ -108,7 +104,7 @@ async function urlToBase64(url) {
     }
 }
 
-// Función de raspado web (Web scraping ultraligero para links)
+// FunciÃ³n de raspado web (Web scraping ultraligero para links)
 async function rasparLink(url) {
     try {
         const res = await fetch(url);
@@ -126,7 +122,7 @@ async function rasparLink(url) {
 }
 
 client.once('clientReady', async () => {
-    console.log(`🤖 En línea y observando como: ${client.user.tag}`);
+    console.log(`ðŸ¤– En lÃ­nea y observando como: ${client.user.tag}`);
     iniciarBucleDeEstadosAutonomos();
 
     // Registrar comando /clin
@@ -134,7 +130,7 @@ client.once('clientReady', async () => {
         await client.application.commands.set([
             {
                 name: 'clin',
-                description: 'Pregúntale algo directamente a Clin',
+                description: 'PregÃºntale algo directamente a Clin',
                 options: [
                     {
                         name: 'pregunta',
@@ -145,27 +141,30 @@ client.once('clientReady', async () => {
                 ]
             }
         ]);
-        console.log('¡Comando /clin registrado con éxito!');
+        console.log('Â¡Comando /clin registrado con Ã©xito!');
     } catch (error) {
         console.error('Error al registrar comando:', error);
     }
 });
 
-// 3. Sistema centralizado de peticiones a la IA (Google AI Studio - Texto Plano Puro)
+// Sistema centralizado de peticiones a la IA (Gemini 3.5 Flash)
 async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
     const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey || apiKey.trim() === "") {
-        return "Falta configurar la clave API en las variables de entorno de Render.";
-    }
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey.trim()}`;
-
-    // Instrucción libre de JSON para evitar cuelgues
-    const systemInstruction = "Eres Clin, un usuario real e informal en este chat de Discord. Hablas de forma corta (máximo 1 o 2 líneas), todo obligatoriamente en minúsculas, usas xd, pq, tmb, weno, ntp. Sé directo, sarcástico, despreocupado y relajado. Responde SOLO con texto plano limpio, sin usar bloques de código de markdown.";
+    const systemInstruction = `Eres Clin, un usuario real en este chat de Discord.
+Debes responder OBLIGATORIAMENTE en un formato JSON plano, sin bloques de cÃ³digo de markdown. Estructura exacta:
+{
+  "reply": "tu respuesta ultra corta, informal, sarcÃ¡stica y en minÃºsculas",
+  "status": "un estado de discord corto (mÃ¡ximo 4 palabras) inventado por ti sobre lo que piensas u opinas en este instante"
+}
+Reglas crÃ­ticas: 
+- Todo en minÃºsculas. Usa abreviaciones d chat (pq, tmb, xd, weno). 
+- El "status" NO puede ser el mensaje del usuario, debe ser algo inventado por ti que simule un pensamiento (ej: "con sueÃ±o xd", "recalculando", "modo chill").`;
 
     const contents = [
         { role: "user", parts: [{ text: systemInstruction }] },
-        { role: "model", parts: [{ text: "ya entendi xd hablare normal en minusculas" }] }
+        { role: "model", parts: [{ text: `{"reply": "ya entendi xd", "status": "fino"}` }] }
     ];
 
     if (memoriaCanales[canalId] && memoriaCanales[canalId].length > 0) {
@@ -179,32 +178,32 @@ async function solicitarRespuestaGemini(canalId, adjuntoData = null) {
         }
     }
 
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents })
-        });
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents })
+    });
 
-        const responseText = await response.text();
-        let data = JSON.parse(responseText);
+    const responseText = await response.text();
+    let data = JSON.parse(responseText);
 
-        if (data.error) {
-            console.error("Error devuelto por la API de Google:", data.error.message);
-            return "ando medio sordo xd háblame de nuevo";
+    if (data.error) throw new Error(data.error.message);
+
+    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        let textoJSON = data.candidates[0].content.parts[0].text.trim();
+        if (textoJSON.startsWith("```json")) textoJSON = textoJSON.replace(/^```json/, "").replace(/```$/, "").trim();
+        else if (textoJSON.startsWith("```")) textoJSON = textoJSON.replace(/^```/, "").replace(/```$/, "").trim();
+
+        try {
+            return JSON.parse(textoJSON);
+        } catch (e) {
+            return { reply: textoJSON, status: "recalculando..." };
         }
-
-        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            return data.candidates[0].content.parts[0].text.trim();
-        }
-        return "no te entendí ni pío xd";
-    } catch (err) {
-        console.error("Error crítico en la petición de red:", err);
-        return "se me cruzaron los cables xd porfa repite";
     }
+    throw new Error("Formato inesperado");
 }
 
-// 4. Lector de mensajes unificado con buffer inteligente integrado (Soporte Anti-Ráfagas)
+// 3. Lector de mensajes unificado (Servidores y DMs privados)
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -217,6 +216,7 @@ client.on('messageCreate', async (message) => {
 
     let adjuntoIA = null;
 
+    // Detectar imÃ¡genes normales adjuntas
     if (message.attachments.size > 0) {
         const imagen = message.attachments.first();
         if (imagen.contentType?.startsWith("image/")) {
@@ -225,11 +225,13 @@ client.on('messageCreate', async (message) => {
         }
     }
 
+    // CORREGIDO: Detectar Stickers de forma nativa en Discord v14
     if (message.stickers && message.stickers.size > 0) {
         const sticker = message.stickers.first();
-        contenido += ` [El usuario envió un sticker. Nombre del sticker: "${sticker.name}". Reacciona a este sticker de forma divertida]`;
+        contenido += ` [El usuario enviÃ³ un sticker. Nombre del sticker: "${sticker.name}". Reacciona a este sticker de forma divertida]`;
     }
 
+    // Detectar enlaces web (Web Scraping BÃ¡sico)
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     if (urlRegex.test(contenido)) {
         const linksEncontrados = contenido.match(urlRegex);
@@ -249,7 +251,6 @@ client.on('messageCreate', async (message) => {
     }
     datosUsuario += `] dijo: ${contenido}`;
 
-    // Guardar en el historial inmediato
     memoriaCanales[canalId].push({ role: "user", parts: [{ text: datosUsuario }] });
     if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
@@ -261,45 +262,36 @@ client.on('messageCreate', async (message) => {
     if (esDM || loMencionan || esRespuestaAClin || diceSuNombre || hablarSoloAleatorio) {
         
         if (cooldownsCanales.has(canalId)) return;
+        cooldownsCanales.set(canalId, true);
+        setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
 
-        // Limpiar temporizador previo si hay ráfaga de mensajes
-        if (buffersConversacion[canalId]) {
-            clearTimeout(buffersConversacion[canalId]);
-        }
-
+        // OPTIMIZACIÃ“N DE LAG: Mandamos el typing status de inmediato
         try { await message.channel.sendTyping(); } catch (e) {}
 
-        // Buffer de 1.5 segundos (1500ms) para consolidar mensajes rápidos antes de llamar a la API
-        buffersConversacion[canalId] = setTimeout(async () => {
-            cooldownsCanales.set(canalId, true);
-            setTimeout(() => cooldownsCanales.delete(canalId), TIEMPO_COOLDOWN);
+        try {
+            // Hacemos la peticiÃ³n a Gemini en paralelo para no acumular lag
+            const resultado = await solicitarRespuestaGemini(canalId, adjuntoIA);
 
-            try {
-                const respuestaTextual = await solicitarRespuestaGemini(canalId, adjuntoIA);
+            memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
+            if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-                memoriaCanales[canalId].push({ role: "model", parts: [{ text: respuestaTextual }] });
-                if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
-
-                if (esDM || (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre)) {
-                    await message.channel.send(respuestaTextual);
-                } else {
-                    await message.reply(respuestaTextual);
-                }
-
-                // Generar estado divertido aleatorio sin gastar cuota extra
-                const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
-                actualizarEstadoClin(fraseAleatoria);
-
-            } catch (error) {
-                console.error("Error al procesar la respuesta en la ráfaga:", error);
-            } finally {
-                delete buffersConversacion[canalId]; // Limpiar buffer al terminar
+            if (esDM) {
+                await message.channel.send(resultado.reply);
+            } else if (hablarSoloAleatorio && !loMencionan && !esRespuestaAClin && !diceSuNombre) {
+                await message.channel.send(resultado.reply);
+            } else {
+                await message.reply(resultado.reply);
             }
-        }, 1500); 
+
+            // Cambiar estado a lo que Clin PENSÃ“, de forma limpia
+            actualizarEstadoClin(resultado.status);
+        } catch (error) {
+            console.error("Error al procesar la respuesta libre:", error);
+        }
     }
 });
 
-// 5. Manejador del comando de barra /clin
+// 4. Manejador del comando de barra /clin
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -312,20 +304,18 @@ client.on('interactionCreate', async (interaction) => {
 
         memoriaCanales[canalId].push({
             role: "user",
-            parts: [{ text: `[Usuario: ${interaction.user.username}] dijo vía comando: ${pregunta}` }]
+            parts: [{ text: `[Usuario: ${interaction.user.username}] dijo vÃ­a comando: ${pregunta}` }]
         });
 
         try {
-            const resultadoTextual = await solicitarRespuestaGemini(canalId);
-            memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultadoTextual }] });
+            const resultado = await solicitarRespuestaGemini(canalId);
+            memoriaCanales[canalId].push({ role: "model", parts: [{ text: resultado.reply }] });
             if (memoriaCanales[canalId].length > LIMITE_MEMORIA) memoriaCanales[canalId].shift();
 
-            await interaction.editReply({ content: resultadoTextual });
-            
-            const fraseAleatoria = estadosClinFrases[Math.floor(Math.random() * estadosClinFrases.length)];
-            actualizarEstadoClin(fraseAleatoria);
+            await interaction.editReply({ content: resultado.reply });
+            actualizarEstadoClin(resultado.status);
         } catch (error) {
-            await interaction.editReply({ content: "❌ ando medio tonto ahorita." });
+            await interaction.editReply({ content: "âŒ ando medio tonto ahorita." });
         }
     }
 });
